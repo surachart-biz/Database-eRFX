@@ -1,10 +1,9 @@
 -- =============================================
--- E-RFQ System Final Database Schema v4.0 (Optimized)
+-- E-RFQ System Complete Database Schema v5.0
+-- Production Ready Version
 -- Database: erfq_system
 -- PostgreSQL Version: 14+
--- Character Set: UTF8
 -- Last Updated: January 2025
--- Total Tables: 62 (59 core + 3 infrastructure)
 -- =============================================
 
 -- =============================================
@@ -29,30 +28,33 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";     -- สำหรับ encryption
 -- ตารางหลักสำหรับข้อมูลอ้างอิงพื้นฐานของระบบ
 -- =============================================
 
--- 1.1 Currencies Table
--- ตาราง: เก็บข้อมูลสกุลเงินที่ใช้ในระบบ
+-- 1.1 Currencies
+-- ตาราง: สกุลเงินที่ใช้ในระบบ
 CREATE TABLE Currencies (
   Id BIGSERIAL PRIMARY KEY,
-  CurrencyCode VARCHAR(3) UNIQUE NOT NULL,     -- รหัสสกุลเงิน 3 ตัว (USD, THB, EUR)
+  CurrencyCode VARCHAR(3) UNIQUE NOT NULL,     -- รหัสสกุลเงิน (USD, THB)
   CurrencyName VARCHAR(100) NOT NULL,          -- ชื่อสกุลเงิน
-  CurrencySymbol VARCHAR(10),                  -- สัญลักษณ์ ($, ฿, €)
+  CurrencySymbol VARCHAR(10),                  -- สัญลักษณ์ ($, ฿)
   DecimalPlaces SMALLINT DEFAULT 2,            -- จำนวนทศนิยม
-  IsActive BOOLEAN DEFAULT TRUE,               -- สถานะการใช้งาน
+  IsActive BOOLEAN DEFAULT TRUE,
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UpdatedAt TIMESTAMP,
   
   CONSTRAINT chk_currency_code CHECK (LENGTH(CurrencyCode) = 3),
   CONSTRAINT chk_decimal_places CHECK (DecimalPlaces BETWEEN 0 AND 4)
 );
-CREATE INDEX idx_currencies_code ON Currencies(CurrencyCode) WHERE IsActive = TRUE;
 
--- 1.2 Countries Table
--- ตาราง: เก็บข้อมูลประเทศ
+COMMENT ON TABLE Currencies IS 'สกุลเงินที่ใช้ในระบบ';
+COMMENT ON COLUMN Currencies.CurrencyCode IS 'รหัสสกุลเงิน 3 ตัว ISO 4217';
+COMMENT ON COLUMN Currencies.DecimalPlaces IS 'จำนวนทศนิยมที่แสดง';
+
+-- 1.2 Countries
+-- ตาราง: ข้อมูลประเทศ
 CREATE TABLE Countries (
   Id BIGSERIAL PRIMARY KEY,
-  CountryCode VARCHAR(2) UNIQUE NOT NULL,      -- รหัสประเทศ 2 ตัว (TH, US, JP)
-  CountryNameEn VARCHAR(100) NOT NULL,         -- ชื่อประเทศภาษาอังกฤษ
-  CountryNameTh VARCHAR(100),                  -- ชื่อประเทศภาษาไทย
+  CountryCode VARCHAR(2) UNIQUE NOT NULL,      -- รหัสประเทศ ISO 3166
+  CountryNameEn VARCHAR(100) NOT NULL,         -- ชื่อประเทศ (อังกฤษ)
+  CountryNameTh VARCHAR(100),                  -- ชื่อประเทศ (ไทย)
   DefaultCurrencyId BIGINT REFERENCES Currencies(Id),  -- สกุลเงินหลัก
   Timezone VARCHAR(50) DEFAULT 'Asia/Bangkok', -- โซนเวลา
   PhoneCode VARCHAR(5),                        -- รหัสโทรศัพท์ (+66, +1)
@@ -61,66 +63,77 @@ CREATE TABLE Countries (
   
   CONSTRAINT chk_country_code CHECK (LENGTH(CountryCode) = 2)
 );
-CREATE INDEX idx_countries_code ON Countries(CountryCode) WHERE IsActive = TRUE;
 
--- 1.3 Business Types
--- ตาราง: ประเภทธุรกิจ (บุคคลธรรมดา, นิติบุคคล)
+COMMENT ON TABLE Countries IS 'ข้อมูลประเทศ';
+COMMENT ON COLUMN Countries.CountryCode IS 'รหัสประเทศ 2 ตัว ISO 3166';
+
+-- 1.3 BusinessTypes
+-- ตาราง: ประเภทธุรกิจ
 CREATE TABLE BusinessTypes (
   Id SMALLINT PRIMARY KEY,
-  Code VARCHAR(20) UNIQUE NOT NULL,            -- รหัสประเภท (INDIVIDUAL, CORPORATE)
-  NameTh VARCHAR(50) NOT NULL,                 -- ชื่อภาษาไทย
-  NameEn VARCHAR(50),                          -- ชื่อภาษาอังกฤษ
-  SortOrder SMALLINT,                          -- ลำดับการแสดงผล
-  IsActive BOOLEAN DEFAULT TRUE,
-  CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 1.4 Job Types
--- ตาราง: ประเภทงาน (ซื้อ, ขาย, ทั้งซื้อและขาย)
-CREATE TABLE JobTypes (
-  Id SMALLINT PRIMARY KEY,
-  Code VARCHAR(20) UNIQUE NOT NULL,            -- รหัส (BUY, SELL, BOTH)
-  NameTh VARCHAR(50) NOT NULL,                 -- ชื่อภาษาไทย
-  NameEn VARCHAR(50),                          -- ชื่อภาษาอังกฤษ
-  ForSupplier BOOLEAN DEFAULT TRUE,            -- ใช้กับ Supplier ได้
-  ForRfq BOOLEAN DEFAULT TRUE,                 -- ใช้กับ RFQ ได้
-  PriceComparisonRule VARCHAR(10),             -- กฎการเปรียบเทียบราคา (MIN, MAX)
+  Code VARCHAR(20) UNIQUE NOT NULL,            -- INDIVIDUAL, CORPORATE
+  NameTh VARCHAR(50) NOT NULL,                 -- บุคคลธรรมดา, นิติบุคคล
+  NameEn VARCHAR(50),
   SortOrder SMALLINT,
   IsActive BOOLEAN DEFAULT TRUE,
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 1.5 Roles
--- ตาราง: บทบาทผู้ใช้งานในระบบ
-CREATE TABLE Roles (
-  Id BIGSERIAL PRIMARY KEY,
-  RoleCode VARCHAR(30) UNIQUE NOT NULL,        -- รหัสบทบาท
-  RoleName VARCHAR(100) NOT NULL,              -- ชื่อบทบาทภาษาอังกฤษ
-  RoleNameTh VARCHAR(100),                     -- ชื่อบทบาทภาษาไทย
-  RoleLevel SMALLINT,                          -- ระดับบทบาท (สำหรับ hierarchy)
-  Description TEXT,                            -- คำอธิบาย
-  IsActive BOOLEAN DEFAULT TRUE,
-  CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  
-  CONSTRAINT chk_role_code CHECK (RoleCode IN 
-    ('SUPER_ADMIN','ADMIN','REQUESTER','APPROVER','PURCHASING','PURCHASING_APPROVER',
-     'SUPPLIER','MANAGING_DIRECTOR'))
-);
+COMMENT ON TABLE BusinessTypes IS 'ประเภทธุรกิจ (บุคคลธรรมดา/นิติบุคคล)';
 
--- 1.6 Permissions
--- ตาราง: สิทธิ์การใช้งานในระบบ
-CREATE TABLE Permissions (
-  Id BIGSERIAL PRIMARY KEY,
-  PermissionCode VARCHAR(50) UNIQUE NOT NULL,  -- รหัสสิทธิ์
-  PermissionName VARCHAR(100) NOT NULL,        -- ชื่อสิทธิ์
-  PermissionNameTh VARCHAR(100),               -- ชื่อสิทธิ์ภาษาไทย
-  Module VARCHAR(50),                          -- โมดูลที่เกี่ยวข้อง
+-- 1.4 JobTypes
+-- ตาราง: ประเภทงาน
+CREATE TABLE JobTypes (
+  Id SMALLINT PRIMARY KEY,
+  Code VARCHAR(20) UNIQUE NOT NULL,            -- BUY, SELL, BOTH
+  NameTh VARCHAR(50) NOT NULL,                 -- ซื้อ, ขาย, ทั้งหมด
+  NameEn VARCHAR(50),
+  ForSupplier BOOLEAN DEFAULT TRUE,            -- ใช้กับ Supplier
+  ForRfq BOOLEAN DEFAULT TRUE,                 -- ใช้กับ RFQ
+  PriceComparisonRule VARCHAR(10),             -- MIN=ซื้อ, MAX=ขาย
+  SortOrder SMALLINT,
   IsActive BOOLEAN DEFAULT TRUE,
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 1.7 Role Permissions Mapping
--- ตาราง: ความสัมพันธ์ระหว่างบทบาทและสิทธิ์
+COMMENT ON TABLE JobTypes IS 'ประเภทงาน (ซื้อ/ขาย)';
+COMMENT ON COLUMN JobTypes.PriceComparisonRule IS 'MIN=เลือกราคาต่ำสุด(ซื้อ), MAX=เลือกราคาสูงสุด(ขาย)';
+
+-- 1.5 Roles  
+-- ตาราง: บทบาทผู้ใช้งาน
+CREATE TABLE Roles (
+  Id BIGSERIAL PRIMARY KEY,
+  RoleCode VARCHAR(30) UNIQUE NOT NULL,
+  RoleName VARCHAR(100) NOT NULL,
+  RoleNameTh VARCHAR(100),
+  Description TEXT,
+  IsActive BOOLEAN DEFAULT TRUE,
+  CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  CONSTRAINT chk_role_code CHECK (RoleCode IN 
+    ('SUPER_ADMIN','ADMIN','REQUESTER','APPROVER','PURCHASING',
+     'PURCHASING_APPROVER','SUPPLIER','MANAGING_DIRECTOR'))
+);
+
+COMMENT ON TABLE Roles IS 'บทบาทผู้ใช้งานในระบบ';
+-- Note: ลบ RoleLevel ออกเพราะไม่ได้ใช้งาน
+
+-- 1.6 Permissions
+-- ตาราง: สิทธิ์การใช้งาน
+CREATE TABLE Permissions (
+  Id BIGSERIAL PRIMARY KEY,
+  PermissionCode VARCHAR(50) UNIQUE NOT NULL,
+  PermissionName VARCHAR(100) NOT NULL,
+  PermissionNameTh VARCHAR(100),
+  Module VARCHAR(50),                          -- RFQ, SUPPLIER, REPORT
+  IsActive BOOLEAN DEFAULT TRUE,
+  CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE Permissions IS 'สิทธิ์การใช้งานในระบบ';
+
+-- 1.7 RolePermissions
+-- ตาราง: ความสัมพันธ์ระหว่าง Role และ Permission
 CREATE TABLE RolePermissions (
   Id BIGSERIAL PRIMARY KEY,
   RoleId BIGINT NOT NULL REFERENCES Roles(Id),
@@ -132,31 +145,36 @@ CREATE TABLE RolePermissions (
   UNIQUE(RoleId, PermissionId)
 );
 
+COMMENT ON TABLE RolePermissions IS 'กำหนดสิทธิ์ให้แต่ละบทบาท';
+
 -- 1.8 Categories
 -- ตาราง: หมวดหมู่สินค้า/บริการ
 CREATE TABLE Categories (
   Id BIGSERIAL PRIMARY KEY,
-  CategoryCode VARCHAR(50) UNIQUE NOT NULL,    -- รหัสหมวดหมู่
-  CategoryNameTh VARCHAR(200) NOT NULL,        -- ชื่อหมวดหมู่ภาษาไทย
-  CategoryNameEn VARCHAR(200),                 -- ชื่อหมวดหมู่ภาษาอังกฤษ
-  Description TEXT,                            -- รายละเอียด
+  CategoryCode VARCHAR(50) UNIQUE NOT NULL,
+  CategoryNameTh VARCHAR(200) NOT NULL,
+  CategoryNameEn VARCHAR(200),
+  Description TEXT,
   SortOrder INT,                               -- ลำดับการแสดงผล
   IsActive BOOLEAN DEFAULT TRUE,
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UpdatedAt TIMESTAMP
 );
-CREATE INDEX idx_categories_active ON Categories(Id) WHERE IsActive = TRUE;
+
+COMMENT ON TABLE Categories IS 'หมวดหมู่สินค้า/บริการ';
+COMMENT ON COLUMN Categories.SortOrder IS 'ลำดับการแสดงผลใน dropdown';
 
 -- 1.9 Subcategories
 -- ตาราง: หมวดหมู่ย่อย
 CREATE TABLE Subcategories (
   Id BIGSERIAL PRIMARY KEY,
   CategoryId BIGINT NOT NULL REFERENCES Categories(Id),
-  SubcategoryCode VARCHAR(50) NOT NULL,        -- รหัสหมวดหมู่ย่อย
-  SubcategoryNameTh VARCHAR(200) NOT NULL,     -- ชื่อหมวดหมู่ย่อยภาษาไทย
-  SubcategoryNameEn VARCHAR(200),              -- ชื่อหมวดหมู่ย่อยภาษาอังกฤษ
-  IsUseSerialNumber BOOLEAN DEFAULT FALSE,     -- ใช้ Serial Number หรือไม่
+  SubcategoryCode VARCHAR(50) NOT NULL,
+  SubcategoryNameTh VARCHAR(200) NOT NULL,
+  SubcategoryNameEn VARCHAR(200),
+  IsUseSerialNumber BOOLEAN DEFAULT FALSE,     -- บังคับใส่ Serial Number
   Duration INT DEFAULT 7,                      -- ระยะเวลาตอบกลับ (วัน)
+  ResponseTimeDays INT DEFAULT 2,              -- เวลาตอบสนอง (วัน)
   Description TEXT,
   SortOrder INT,
   IsActive BOOLEAN DEFAULT TRUE,
@@ -165,48 +183,55 @@ CREATE TABLE Subcategories (
   
   UNIQUE(CategoryId, SubcategoryCode)
 );
-CREATE INDEX idx_subcategories_category ON Subcategories(CategoryId) WHERE IsActive = TRUE;
 
--- 1.10 Subcategory Document Requirements
--- ตาราง: เอกสารที่ต้องแนบตามหมวดหมู่ย่อย
+COMMENT ON TABLE Subcategories IS 'หมวดหมู่ย่อยของสินค้า/บริการ';
+COMMENT ON COLUMN Subcategories.IsUseSerialNumber IS 'บังคับกรอก Serial Number';
+COMMENT ON COLUMN Subcategories.Duration IS 'จำนวนวันสำหรับคำนวณ deadline';
+COMMENT ON COLUMN Subcategories.ResponseTimeDays IS 'จำนวนวันที่ต้อง action';
+
+-- 1.10 SubcategoryDocRequirements
+-- ตาราง: เอกสารที่ต้องแนบตาม Subcategory
 CREATE TABLE SubcategoryDocRequirements (
   Id BIGSERIAL PRIMARY KEY,
   SubcategoryId BIGINT NOT NULL REFERENCES Subcategories(Id),
-  DocumentName VARCHAR(200) NOT NULL,          -- ชื่อเอกสาร
-  DocumentNameEn VARCHAR(200),                 -- ชื่อเอกสารภาษาอังกฤษ
-  IsRequired BOOLEAN DEFAULT TRUE,             -- บังคับแนบหรือไม่
-  MaxFileSize INT DEFAULT 30,                  -- ขนาดไฟล์สูงสุด (MB)
-  AllowedExtensions TEXT,                      -- นามสกุลที่อนุญาต (pdf,doc,xlsx)
+  DocumentName VARCHAR(200) NOT NULL,
+  DocumentNameEn VARCHAR(200),
+  IsRequired BOOLEAN DEFAULT TRUE,
+  MaxFileSize INT DEFAULT 30,                  -- MB
+  AllowedExtensions TEXT,                      -- pdf,doc,xlsx
   SortOrder INT,
   IsActive BOOLEAN DEFAULT TRUE,
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+COMMENT ON TABLE SubcategoryDocRequirements IS 'เอกสารที่ต้องแนบตาม Subcategory';
+
 -- 1.11 Incoterms
--- ตาราง: เงื่อนไขการส่งมอบสินค้าระหว่างประเทศ
+-- ตาราง: เงื่อนไขการส่งมอบสินค้า
 CREATE TABLE Incoterms (
   Id BIGSERIAL PRIMARY KEY,
-  IncotermCode VARCHAR(3) UNIQUE NOT NULL,     -- รหัส (FOB, CIF, EXW)
-  IncotermName VARCHAR(100) NOT NULL,          -- ชื่อเต็ม
-  Description TEXT,                            -- คำอธิบาย
+  IncotermCode VARCHAR(3) UNIQUE NOT NULL,     -- FOB, CIF, EXW
+  IncotermName VARCHAR(100) NOT NULL,
+  Description TEXT,
   IsActive BOOLEAN DEFAULT TRUE,
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+COMMENT ON TABLE Incoterms IS 'เงื่อนไขการส่งมอบสินค้าระหว่างประเทศ';
+
 -- =============================================
--- SECTION 2: COMPANY & ORGANIZATION STRUCTURE
--- ตารางโครงสร้างองค์กรและบริษัท
+-- SECTION 2: COMPANY & ORGANIZATION
 -- =============================================
 
 -- 2.1 Companies
--- ตาราง: ข้อมูลบริษัทในระบบ (Multi-Company Support)
+-- ตาราง: บริษัทในระบบ
 CREATE TABLE Companies (
   Id BIGSERIAL PRIMARY KEY,
-  CompanyCode VARCHAR(20) UNIQUE NOT NULL,     -- รหัสบริษัท
-  CompanyNameTh VARCHAR(150),                  -- ชื่อบริษัทภาษาไทย
-  CompanyNameEn VARCHAR(150),                  -- ชื่อบริษัทภาษาอังกฤษ
-  ShortNameEn VARCHAR(10) NOT NULL UNIQUE,     -- ชื่อย่อ (ใช้สร้างเลข RFQ)
-  TaxId VARCHAR(20) UNIQUE,                    -- เลขประจำตัวผู้เสียภาษี
+  CompanyCode VARCHAR(20) UNIQUE NOT NULL,
+  CompanyNameTh VARCHAR(150),
+  CompanyNameEn VARCHAR(150),
+  ShortNameEn VARCHAR(10) NOT NULL UNIQUE,     -- ใช้สร้างเลข RFQ
+  TaxId VARCHAR(20) UNIQUE,
   
   -- Location & Currency
   CountryId BIGINT NOT NULL REFERENCES Countries(Id),
@@ -214,9 +239,9 @@ CREATE TABLE Companies (
   
   -- Business Information
   BusinessTypeId SMALLINT REFERENCES BusinessTypes(Id),
-  RegisteredCapital DECIMAL(15,2),             -- ทุนจดทะเบียน
+  RegisteredCapital DECIMAL(15,2),
   RegisteredCapitalCurrencyId BIGINT REFERENCES Currencies(Id),
-  FoundedDate DATE,                            -- วันที่ก่อตั้ง
+  FoundedDate DATE,
   
   -- Contact Information
   AddressLine1 VARCHAR(200),
@@ -237,64 +262,62 @@ CREATE TABLE Companies (
   UpdatedAt TIMESTAMP,
   UpdatedBy BIGINT,
   
-  CONSTRAINT chk_company_status CHECK (Status IN ('ACTIVE','INACTIVE','SUSPENDED'))
+  CONSTRAINT chk_company_status CHECK (Status IN ('ACTIVE','INACTIVE'))
 );
-CREATE INDEX idx_companies_short_name ON Companies(ShortNameEn) WHERE IsActive = TRUE;
-CREATE INDEX idx_companies_tax_id ON Companies(TaxId) WHERE TaxId IS NOT NULL;
+
+COMMENT ON TABLE Companies IS 'บริษัทในระบบ (Multi-Company Support)';
+COMMENT ON COLUMN Companies.ShortNameEn IS 'ชื่อย่อสำหรับสร้างเลข RFQ';
 
 -- 2.2 Departments
 -- ตาราง: แผนกภายในบริษัท
 CREATE TABLE Departments (
   Id BIGSERIAL PRIMARY KEY,
   CompanyId BIGINT NOT NULL REFERENCES Companies(Id),
-  DepartmentCode VARCHAR(50) NOT NULL,         -- รหัสแผนก
-  DepartmentNameTh VARCHAR(200) NOT NULL,      -- ชื่อแผนกภาษาไทย
-  DepartmentNameEn VARCHAR(200),               -- ชื่อแผนกภาษาอังกฤษ
-  ParentDepartmentId BIGINT REFERENCES Departments(Id),  -- แผนกแม่ (สำหรับ hierarchy)
+  DepartmentCode VARCHAR(50) NOT NULL,
+  DepartmentNameTh VARCHAR(200) NOT NULL,
+  DepartmentNameEn VARCHAR(200),
   ManagerUserId BIGINT,                        -- ผู้จัดการแผนก
-  CostCenter VARCHAR(50),                      -- รหัส Cost Center
+  CostCenter VARCHAR(50),
   IsActive BOOLEAN DEFAULT TRUE,
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UpdatedAt TIMESTAMP,
   
   UNIQUE(CompanyId, DepartmentCode)
 );
-CREATE INDEX idx_departments_company ON Departments(CompanyId) WHERE IsActive = TRUE;
+
+COMMENT ON TABLE Departments IS 'แผนกภายในบริษัท';
+-- Note: ลบ ParentDepartmentId ออกเพราะไม่มี hierarchy
 
 -- =============================================
 -- SECTION 3: USER MANAGEMENT
--- ตารางจัดการผู้ใช้งานระบบ (พนักงานภายใน)
 -- =============================================
 
 -- 3.1 Users
--- ตาราง: ผู้ใช้งานระบบ (พนักงานภายในบริษัท)
+-- ตาราง: พนักงานภายในบริษัท
 CREATE TABLE Users (
   Id BIGSERIAL PRIMARY KEY,
-  EmployeeCode VARCHAR(50),                    -- รหัสพนักงาน
-  Username VARCHAR(100) UNIQUE,                -- ชื่อผู้ใช้ (nullable - ใช้ Email login)
-  Email VARCHAR(100) UNIQUE NOT NULL,          -- อีเมล (ใช้ login)
-  PasswordHash VARCHAR(255) NOT NULL,          -- รหัสผ่านที่เข้ารหัสแล้ว
+  EmployeeCode VARCHAR(50),
+  Email VARCHAR(100) UNIQUE NOT NULL,          -- ใช้ login
+  PasswordHash VARCHAR(255) NOT NULL,
   
   -- Personal Information
-  FirstNameTh VARCHAR(100),                    -- ชื่อภาษาไทย
-  LastNameTh VARCHAR(100),                     -- นามสกุลภาษาไทย
-  FirstNameEn VARCHAR(100),                    -- ชื่อภาษาอังกฤษ
-  LastNameEn VARCHAR(100),                     -- นามสกุลภาษาอังกฤษ
-  PhoneNumber VARCHAR(20),                     -- เบอร์โทรศัพท์
-  MobileNumber VARCHAR(20),                    -- เบอร์มือถือ
+  FirstNameTh VARCHAR(100),
+  LastNameTh VARCHAR(100),
+  FirstNameEn VARCHAR(100),
+  LastNameEn VARCHAR(100),
+  PhoneNumber VARCHAR(20),
+  MobileNumber VARCHAR(20),
   
-  -- Authentication & Security (Updated)
-  IsEmailVerified BOOLEAN DEFAULT FALSE,       -- ยืนยันอีเมลแล้วหรือยัง
-  EmailVerifiedAt TIMESTAMP,                   -- วันที่ยืนยันอีเมล
-  PasswordResetToken VARCHAR(255),             -- Token สำหรับรีเซ็ตรหัสผ่าน
-  PasswordResetExpiry TIMESTAMP,               -- วันหมดอายุ Token
-  SecurityStamp VARCHAR(100),                  -- Token สำหรับ invalidate JWT
-  LastLoginAt TIMESTAMP,                       -- วันที่ login ล่าสุด
-  LoginAttempts INT DEFAULT 0,                 -- จำนวนครั้งที่ login ผิด (ไม่ใช้แล้ว)
-  LockedUntil TIMESTAMP,                       -- วันที่ปลดล็อค (ไม่ใช้แล้ว)
-  LockoutEnabled BOOLEAN DEFAULT TRUE,         -- เปิดใช้งานการล็อคบัญชี
-  LockoutEnd TIMESTAMP WITH TIME ZONE,         -- วันเวลาที่สิ้นสุดการล็อค
-  AccessFailedCount INT DEFAULT 0,             -- จำนวนครั้งที่ login ผิด
+  -- Authentication & Security
+  IsEmailVerified BOOLEAN DEFAULT FALSE,
+  EmailVerifiedAt TIMESTAMP,
+  PasswordResetToken VARCHAR(255),
+  PasswordResetExpiry TIMESTAMP,
+  SecurityStamp VARCHAR(100),                  -- JWT invalidation
+  LastLoginAt TIMESTAMP,
+  LockoutEnabled BOOLEAN DEFAULT TRUE,
+  LockoutEnd TIMESTAMP WITH TIME ZONE,
+  AccessFailedCount INT DEFAULT 0,
   
   -- Status & Audit
   Status VARCHAR(20) DEFAULT 'ACTIVE',
@@ -307,25 +330,16 @@ CREATE TABLE Users (
   UpdatedAt TIMESTAMP,
   UpdatedBy BIGINT,
   
-  CONSTRAINT chk_user_status CHECK (Status IN ('ACTIVE','INACTIVE','SUSPENDED','LOCKED'))
+  CONSTRAINT chk_user_status CHECK (Status IN ('ACTIVE','INACTIVE'))
 );
 
--- Create Indexes
-CREATE INDEX idx_users_email ON Users(Email) WHERE IsDeleted = FALSE;
-CREATE INDEX idx_users_email_active ON Users(Email) WHERE IsDeleted = FALSE AND IsActive = TRUE;
-CREATE INDEX idx_users_username ON Users(Username) WHERE IsDeleted = FALSE;
-CREATE INDEX idx_users_employee_code ON Users(EmployeeCode) WHERE EmployeeCode IS NOT NULL;
+COMMENT ON TABLE Users IS 'พนักงานภายในบริษัท (Internal Users)';
+COMMENT ON COLUMN Users.Email IS 'ใช้เป็น username สำหรับ login';
+COMMENT ON COLUMN Users.IsDeleted IS 'Soft delete flag';
+-- Note: ลบ Username ออกเพราะใช้ Email login
 
--- Comments
-COMMENT ON COLUMN Users.Username IS 'ชื่อผู้ใช้ (Optional) - ระบบใช้ Email ในการ login';
-COMMENT ON COLUMN Users.Email IS 'อีเมล - ใช้เป็น credential หลักในการ login';
-COMMENT ON COLUMN Users.SecurityStamp IS 'Token สำหรับ invalidate JWT เมื่อเปลี่ยนรหัสผ่าน';
-COMMENT ON COLUMN Users.LockoutEnabled IS 'เปิดใช้งานการล็อคบัญชี - TRUE = สามารถถูกล็อคได้';
-COMMENT ON COLUMN Users.LockoutEnd IS 'วันเวลาที่สิ้นสุดการล็อค - NULL = ไม่ถูกล็อค';
-COMMENT ON COLUMN Users.AccessFailedCount IS 'จำนวนครั้งที่ login ผิด - รีเซ็ตเป็น 0 เมื่อ login สำเร็จ';
-
--- 3.2 User Company Roles
--- ตาราง: บทบาทของผู้ใช้ในแต่ละบริษัท (Multi-Company, Multi-Role)
+-- 3.2 UserCompanyRoles
+-- ตาราง: บทบาทของ User ในแต่ละบริษัท
 CREATE TABLE UserCompanyRoles (
   Id BIGSERIAL PRIMARY KEY,
   UserId BIGINT NOT NULL REFERENCES Users(Id),
@@ -333,15 +347,15 @@ CREATE TABLE UserCompanyRoles (
   DepartmentId BIGINT REFERENCES Departments(Id),
   
   -- Primary and Secondary Roles
-  PrimaryRoleId BIGINT NOT NULL REFERENCES Roles(Id),    -- บทบาทหลัก
-  SecondaryRoleId BIGINT REFERENCES Roles(Id),           -- บทบาทรอง (optional)
+  PrimaryRoleId BIGINT NOT NULL REFERENCES Roles(Id),
+  SecondaryRoleId BIGINT REFERENCES Roles(Id),
   
   -- Role-specific configurations
-  ApproverLevel SMALLINT CHECK (ApproverLevel BETWEEN 1 AND 3),  -- ระดับอนุมัติ (1-3)
+  ApproverLevel SMALLINT CHECK (ApproverLevel BETWEEN 1 AND 3),
   
   -- Validity Period
-  StartDate DATE NOT NULL,                     -- วันที่เริ่มมีสิทธิ์
-  EndDate DATE,                                 -- วันที่สิ้นสุดสิทธิ์
+  StartDate DATE NOT NULL,
+  EndDate DATE,
   
   -- Status
   IsActive BOOLEAN DEFAULT TRUE,
@@ -350,7 +364,6 @@ CREATE TABLE UserCompanyRoles (
   UpdatedAt TIMESTAMP,
   UpdatedBy BIGINT,
   
-  -- Constraints
   UNIQUE(UserId, CompanyId),
   CONSTRAINT chk_role_rules CHECK (
     -- Requester cannot be Approver or Purchasing
@@ -364,11 +377,12 @@ CREATE TABLE UserCompanyRoles (
   ),
   CONSTRAINT chk_date_validity CHECK (EndDate IS NULL OR EndDate > StartDate)
 );
-CREATE INDEX idx_user_company_roles_user ON UserCompanyRoles(UserId) WHERE IsActive = TRUE;
-CREATE INDEX idx_user_company_roles_company ON UserCompanyRoles(CompanyId) WHERE IsActive = TRUE;
 
--- 3.3 User Category Bindings
--- ตาราง: กำหนดหมวดหมู่ที่ Purchasing รับผิดชอบ
+COMMENT ON TABLE UserCompanyRoles IS 'บทบาทของ User ในแต่ละบริษัท';
+COMMENT ON COLUMN UserCompanyRoles.ApproverLevel IS 'ระดับการอนุมัติ 1-3';
+
+-- 3.3 UserCategoryBindings
+-- ตาราง: Category ที่ Purchasing รับผิดชอบ
 CREATE TABLE UserCategoryBindings (
   Id BIGSERIAL PRIMARY KEY,
   UserCompanyRoleId BIGINT NOT NULL REFERENCES UserCompanyRoles(Id),
@@ -380,31 +394,19 @@ CREATE TABLE UserCategoryBindings (
   UNIQUE(UserCompanyRoleId, CategoryId, SubcategoryId)
 );
 
--- 3.4 Approver Bindings
--- ตาราง: กำหนดผู้อนุมัติสำหรับแต่ละแผนก/ผู้ขอ
-CREATE TABLE ApproverBindings (
-  Id BIGSERIAL PRIMARY KEY,
-  ApproverUserCompanyRoleId BIGINT NOT NULL REFERENCES UserCompanyRoles(Id),
-  DepartmentId BIGINT REFERENCES Departments(Id),       -- แผนกที่ดูแล
-  RequesterUserId BIGINT REFERENCES Users(Id),          -- ผู้ขอที่ดูแล (specific)
-  MaxApprovalAmount DECIMAL(15,2),                      -- วงเงินอนุมัติสูงสุด
-  IsActive BOOLEAN DEFAULT TRUE,
-  CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  
-  UNIQUE(ApproverUserCompanyRoleId, DepartmentId, RequesterUserId)
-);
+COMMENT ON TABLE UserCategoryBindings IS 'กำหนด Category ที่ Purchasing รับผิดชอบ';
 
--- 3.5 Delegation Settings
--- ตาราง: การมอบหมายงานชั่วคราว (เมื่อลางาน)
+-- 3.4 Delegations
+-- ตาราง: การมอบหมายงานชั่วคราว
 CREATE TABLE Delegations (
   Id BIGSERIAL PRIMARY KEY,
-  FromUserId BIGINT NOT NULL REFERENCES Users(Id),      -- ผู้มอบหมาย
-  ToUserId BIGINT NOT NULL REFERENCES Users(Id),        -- ผู้รับมอบหมาย
+  FromUserId BIGINT NOT NULL REFERENCES Users(Id),
+  ToUserId BIGINT NOT NULL REFERENCES Users(Id),
   CompanyId BIGINT NOT NULL REFERENCES Companies(Id),
   RoleId BIGINT NOT NULL REFERENCES Roles(Id),
-  StartDate TIMESTAMP NOT NULL,                         -- วันที่เริ่ม
-  EndDate TIMESTAMP NOT NULL,                           -- วันที่สิ้นสุด
-  Reason TEXT,                                          -- เหตุผล
+  StartDate TIMESTAMP NOT NULL,
+  EndDate TIMESTAMP NOT NULL,
+  Reason TEXT,
   IsActive BOOLEAN DEFAULT TRUE,
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CreatedBy BIGINT,
@@ -413,33 +415,34 @@ CREATE TABLE Delegations (
   CONSTRAINT chk_delegation_users CHECK (FromUserId != ToUserId)
 );
 
+COMMENT ON TABLE Delegations IS 'การมอบหมายงานชั่วคราว (เช่น ลางาน)';
+
 -- =============================================
 -- SECTION 4: SUPPLIER MANAGEMENT
--- ตารางจัดการข้อมูล Supplier และผู้ติดต่อ
 -- =============================================
 
 -- 4.1 Suppliers
--- ตาราง: ข้อมูล Supplier ที่ลงทะเบียนในระบบ
+-- ตาราง: ข้อมูล Supplier
 CREATE TABLE Suppliers (
   Id BIGSERIAL PRIMARY KEY,
   
   -- Company Information
-  TaxId VARCHAR(20) UNIQUE,                    -- เลขประจำตัวผู้เสียภาษี
-  CompanyNameTh VARCHAR(200) NOT NULL,         -- ชื่อบริษัทภาษาไทย
-  CompanyNameEn VARCHAR(200),                  -- ชื่อบริษัทภาษาอังกฤษ
-  BusinessTypeId SMALLINT NOT NULL REFERENCES BusinessTypes(Id),  -- ประเภทบุคคล
-  JobTypeId SMALLINT NOT NULL REFERENCES JobTypes(Id),            -- ประเภทงาน (ซื้อ/ขาย)
+  TaxId VARCHAR(20) UNIQUE,
+  CompanyNameTh VARCHAR(200) NOT NULL,
+  CompanyNameEn VARCHAR(200),
+  BusinessTypeId SMALLINT NOT NULL REFERENCES BusinessTypes(Id),
+  JobTypeId SMALLINT NOT NULL REFERENCES JobTypes(Id),
   
   -- Financial Information
-  RegisteredCapital DECIMAL(15,2),             -- ทุนจดทะเบียน
+  RegisteredCapital DECIMAL(15,2),
   RegisteredCapitalCurrencyId BIGINT REFERENCES Currencies(Id),
   DefaultCurrencyId BIGINT REFERENCES Currencies(Id),
   
   -- Contact Information
-  CompanyEmail VARCHAR(100),                   -- อีเมลบริษัท
-  CompanyPhone VARCHAR(20),                    -- เบอร์โทรศัพท์บริษัท
-  CompanyFax VARCHAR(20),                      -- แฟกซ์
-  CompanyWebsite VARCHAR(200),                 -- เว็บไซต์
+  CompanyEmail VARCHAR(100),
+  CompanyPhone VARCHAR(20),
+  CompanyFax VARCHAR(20),
+  CompanyWebsite VARCHAR(200),
   
   -- Address
   AddressLine1 VARCHAR(200),
@@ -450,8 +453,8 @@ CREATE TABLE Suppliers (
   CountryId BIGINT REFERENCES Countries(Id),
   
   -- Business Details
-  BusinessScope TEXT,                          -- ขอบเขตการดำเนินธุรกิจ (max 500 chars)
-  FoundedDate DATE,                            -- วันที่ก่อตั้งบริษัท
+  BusinessScope TEXT,                          -- max 500 chars
+  FoundedDate DATE,
   
   -- Registration & Approval
   InvitedByUserId BIGINT REFERENCES Users(Id), -- User ที่เชิญลงทะเบียน
@@ -462,8 +465,8 @@ CREATE TABLE Suppliers (
   ApprovedAt TIMESTAMP,                        -- วันเวลาที่อนุมัติ
   
   -- Status Management
-  Status VARCHAR(20) DEFAULT 'PENDING',        -- สถานะ: PENDING, COMPLETED, DECLINED
-  DeclineReason TEXT,                          -- เหตุผลที่ปฏิเสธ
+  Status VARCHAR(20) DEFAULT 'PENDING',
+  DeclineReason TEXT,
   
   -- System Fields
   IsActive BOOLEAN DEFAULT TRUE,
@@ -473,47 +476,40 @@ CREATE TABLE Suppliers (
   CONSTRAINT chk_supplier_status CHECK (Status IN ('PENDING','COMPLETED','DECLINED'))
 );
 
--- Create Indexes
-CREATE INDEX idx_suppliers_status ON Suppliers(Status) WHERE IsActive = TRUE;
-CREATE INDEX idx_suppliers_tax_id ON Suppliers(TaxId) WHERE TaxId IS NOT NULL;
-CREATE INDEX idx_suppliers_job_type ON Suppliers(JobTypeId) WHERE IsActive = TRUE;
-CREATE INDEX idx_suppliers_company ON Suppliers(InvitedByCompanyId) WHERE InvitedByCompanyId IS NOT NULL;
+COMMENT ON TABLE Suppliers IS 'ข้อมูล Supplier ที่ลงทะเบียนในระบบ';
+COMMENT ON COLUMN Suppliers.BusinessScope IS 'ขอบเขตธุรกิจ (max 500 ตัวอักษร)';
 
--- Comments
-COMMENT ON TABLE Suppliers IS 'ตารางเก็บข้อมูล Supplier ที่ลงทะเบียนในระบบ';
-COMMENT ON COLUMN Suppliers.Status IS 'PENDING=รอตรวจสอบ, COMPLETED=ตรวจสอบผ่าน, DECLINED=ปฏิเสธ';
-COMMENT ON COLUMN Suppliers.BusinessScope IS 'ขอบเขตการดำเนินธุรกิจ max 500 ตัวอักษร';
-
--- 4.2 Supplier Contacts
--- ตาราง: ผู้ติดต่อของ Supplier (สามารถ login เข้าระบบ)
+-- 4.2 SupplierContacts
+-- ตาราง: ผู้ติดต่อของ Supplier
 CREATE TABLE SupplierContacts (
   Id BIGSERIAL PRIMARY KEY,
   SupplierId BIGINT NOT NULL REFERENCES Suppliers(Id),
   
   -- Personal Information
-  FirstName VARCHAR(100) NOT NULL,             -- ชื่อ
-  LastName VARCHAR(100) NOT NULL,              -- นามสกุล
-  Position VARCHAR(100),                       -- ตำแหน่งงาน
-  Email VARCHAR(100) NOT NULL,                 -- อีเมล (ใช้ login)
-  PhoneNumber VARCHAR(20),                     -- เบอร์โทรศัพท์
-  MobileNumber VARCHAR(20),                    -- เบอร์มือถือ
+  FirstName VARCHAR(100) NOT NULL,
+  LastName VARCHAR(100) NOT NULL,
+  Position VARCHAR(100),
+  Email VARCHAR(100) NOT NULL,                 -- ใช้ login
+  PhoneNumber VARCHAR(20),
+  MobileNumber VARCHAR(20),
   
-  -- Authentication (Updated - ไม่มี Username)
-  PasswordHash VARCHAR(255),                   -- รหัสผ่านที่เข้ารหัส
-  SecurityStamp VARCHAR(100),                  -- Token สำหรับ invalidate JWT
+  -- Authentication
+  PasswordHash VARCHAR(255),
+  SecurityStamp VARCHAR(100),
   
   -- Security Settings
-  IsEmailVerified BOOLEAN DEFAULT FALSE,       -- ยืนยันอีเมลแล้วหรือยัง
-  EmailVerifiedAt TIMESTAMP,                   -- วันที่ยืนยันอีเมล
-  PasswordResetToken VARCHAR(255),             -- Token รีเซ็ตรหัสผ่าน
-  PasswordResetExpiry TIMESTAMP,               -- วันหมดอายุ Token
-  LastLoginAt TIMESTAMP,                       -- วันที่ login ล่าสุด
-  FailedLoginAttempts INT DEFAULT 0,           -- จำนวนครั้งที่ login ผิด
-  LockoutEnd TIMESTAMP WITH TIME ZONE,         -- วันเวลาที่สิ้นสุดการล็อค
+  IsEmailVerified BOOLEAN DEFAULT FALSE,
+  EmailVerifiedAt TIMESTAMP,
+  PasswordResetToken VARCHAR(255),
+  PasswordResetExpiry TIMESTAMP,
+  LastLoginAt TIMESTAMP,
+  FailedLoginAttempts INT DEFAULT 0,
+  LockoutEnd TIMESTAMP WITH TIME ZONE,
   
   -- Permissions
-  CanSubmitQuotation BOOLEAN DEFAULT TRUE,     -- สิทธิ์เสนอราคา
-  CanViewReports BOOLEAN DEFAULT FALSE,        -- สิทธิ์ดูรายงาน
+  CanSubmitQuotation BOOLEAN DEFAULT TRUE,
+  CanViewReports BOOLEAN DEFAULT FALSE,
+  IsPrimaryContact BOOLEAN DEFAULT FALSE,      -- Primary contact flag
   
   -- Status & Audit
   IsActive BOOLEAN DEFAULT TRUE,
@@ -525,20 +521,11 @@ CREATE TABLE SupplierContacts (
   UNIQUE(SupplierId, Email)
 );
 
--- Create Indexes
-CREATE INDEX idx_supplier_contacts_supplier ON SupplierContacts(SupplierId) WHERE IsActive = TRUE;
-CREATE INDEX idx_supplier_contacts_email ON SupplierContacts(Email) WHERE IsActive = TRUE;
-CREATE INDEX idx_supplier_contacts_email_active ON SupplierContacts(Email) WHERE IsActive = TRUE;
+COMMENT ON TABLE SupplierContacts IS 'ผู้ติดต่อของ Supplier';
+COMMENT ON COLUMN SupplierContacts.IsPrimaryContact IS 'เป็น Primary Contact หรือไม่';
 
--- Comments
-COMMENT ON TABLE SupplierContacts IS 'ผู้ติดต่อของ Supplier ที่สามารถ login เข้าระบบ';
-COMMENT ON COLUMN SupplierContacts.Email IS 'อีเมล - ใช้เป็น credential หลักในการ login';
-COMMENT ON COLUMN SupplierContacts.SecurityStamp IS 'Token สำหรับ invalidate JWT';
-COMMENT ON COLUMN SupplierContacts.LockoutEnd IS 'วันเวลาที่สิ้นสุดการล็อค';
-COMMENT ON COLUMN SupplierContacts.FailedLoginAttempts IS 'จำนวนครั้งที่ login ผิด';
-
--- 4.3 Supplier Categories
--- ตาราง: หมวดหมู่ที่ Supplier ให้บริการ (Many-to-Many)
+-- 4.3 SupplierCategories
+-- ตาราง: Category ที่ Supplier ให้บริการ
 CREATE TABLE SupplierCategories (
   Id BIGSERIAL PRIMARY KEY,
   SupplierId BIGINT NOT NULL REFERENCES Suppliers(Id),
@@ -549,50 +536,38 @@ CREATE TABLE SupplierCategories (
   
   UNIQUE(SupplierId, CategoryId, SubcategoryId)
 );
-CREATE INDEX idx_supplier_categories_supplier ON SupplierCategories(SupplierId) WHERE IsActive = TRUE;
-CREATE INDEX idx_supplier_categories_category ON SupplierCategories(CategoryId) WHERE IsActive = TRUE;
 
--- 4.4 Supplier Documents
--- ตาราง: เอกสารของ Supplier
+COMMENT ON TABLE SupplierCategories IS 'Category ที่ Supplier ให้บริการ';
+
+-- 4.4 SupplierDocuments
+-- ตาราง: เอกสารของ Supplier (Simplified)
 CREATE TABLE SupplierDocuments (
   Id BIGSERIAL PRIMARY KEY,
   SupplierId BIGINT NOT NULL REFERENCES Suppliers(Id),
-  DocumentType VARCHAR(50) NOT NULL,           -- ประเภทเอกสาร
-  DocumentName VARCHAR(200) NOT NULL,          -- ชื่อเอกสาร
-  FileName VARCHAR(255) NOT NULL,              -- ชื่อไฟล์
-  FilePath TEXT,                               -- path ที่เก็บไฟล์
-  FileSize BIGINT,                             -- ขนาดไฟล์ (bytes)
-  MimeType VARCHAR(100),                       -- ประเภทไฟล์
-  
-  -- Validity
-  IssueDate DATE,                              -- วันที่ออกเอกสาร
-  ExpiryDate DATE,                             -- วันหมดอายุ
-  
-  -- Status
-  VerificationStatus VARCHAR(20) DEFAULT 'PENDING',  -- สถานะการตรวจสอบ
-  VerifiedBy BIGINT REFERENCES Users(Id),
-  VerifiedAt TIMESTAMP,
-  
-  -- Audit
+  DocumentType VARCHAR(50) NOT NULL,
+  DocumentName VARCHAR(200) NOT NULL,
+  FileName VARCHAR(255) NOT NULL,
+  FilePath TEXT,
+  FileSize BIGINT,
+  MimeType VARCHAR(100),
   IsActive BOOLEAN DEFAULT TRUE,
   UploadedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UploadedBy BIGINT,
-  
-  CONSTRAINT chk_doc_verification CHECK (VerificationStatus IN ('PENDING','VERIFIED','REJECTED'))
+  UploadedBy BIGINT
 );
-CREATE INDEX idx_supplier_documents_supplier ON SupplierDocuments(SupplierId) WHERE IsActive = TRUE;
+
+COMMENT ON TABLE SupplierDocuments IS 'เอกสารของ Supplier';
+-- Note: ลบ IssueDate, ExpiryDate, VerificationStatus ที่ไม่จำเป็น
 
 -- =============================================
--- SECTION 5: RFQ MANAGEMENT (ENHANCED)
--- ตารางจัดการใบขอเสนอราคา
+-- SECTION 5: RFQ MANAGEMENT
 -- =============================================
 
--- 5.1 RFQs (Request for Quotations) - ENHANCED
+-- 5.1 Rfqs
 -- ตาราง: ใบขอเสนอราคา
 CREATE TABLE Rfqs (
   Id BIGSERIAL PRIMARY KEY,
-  RfqNumber VARCHAR(50) UNIQUE NOT NULL,       -- เลขที่ RFQ (Format: ShortNameEn-yy-mm-xxxx)
-  ProjectName VARCHAR(500) NOT NULL,           -- ชื่อโครงการ
+  RfqNumber VARCHAR(50) UNIQUE NOT NULL,       -- Format: XX-YY-MM-XXXX
+  ProjectName VARCHAR(500) NOT NULL,
   
   -- Company & Department
   CompanyId BIGINT NOT NULL REFERENCES Companies(Id),
@@ -610,32 +585,33 @@ CREATE TABLE Rfqs (
   RequesterPhone VARCHAR(20),                             -- เบอร์ผู้ขอ
   
   -- Budget & Currency
-  BudgetAmount DECIMAL(15,2),                             -- งบประมาณ
+  BudgetAmount DECIMAL(15,2),
   BudgetCurrencyId BIGINT NOT NULL REFERENCES Currencies(Id),
   
   -- Important Dates
   CreatedDate DATE NOT NULL DEFAULT CURRENT_DATE,
-  RequiredQuotationDate TIMESTAMP NOT NULL,               -- วันที่ต้องการใบเสนอราคา
-  QuotationDeadline TIMESTAMP,                           -- วันสิ้นสุดการเสนอราคา (Requester กำหนด)
-  SubmissionDeadline TIMESTAMP,                          -- วันสิ้นสุดการเสนอราคา (Purchasing กำหนด)
+  RequiredQuotationDate TIMESTAMP NOT NULL,    -- วันที่ต้องการใบเสนอราคา
+  QuotationDeadline TIMESTAMP,                 -- Requester กำหนด
+  SubmissionDeadline TIMESTAMP,                -- Purchasing กำหนด
   
-  -- Serial Number (if required by subcategory)
+  -- Serial Number (if required)
   SerialNumber VARCHAR(100),
   
-  -- Status & Workflow (Updated)
+  -- Status & Workflow
   Status VARCHAR(20) DEFAULT 'SAVE_DRAFT',
-  CurrentLevel SMALLINT DEFAULT 0,                        -- ระดับการอนุมัติปัจจุบัน
-  CurrentActorId BIGINT REFERENCES Users(Id),             -- ผู้ที่ต้อง action
+  CurrentLevel SMALLINT DEFAULT 0,
+  CurrentActorId BIGINT REFERENCES Users(Id),
+  CurrentActorReceivedAt TIMESTAMP,            -- วันที่ actor ได้รับ
   
-  -- Re-Bid Fields (New)
-  ReBidCount INT DEFAULT 0,                               -- จำนวนครั้งที่ Re-Bid
-  LastReBidAt TIMESTAMP,                                  -- วันเวลาที่ Re-Bid ล่าสุด
-  ReBidReason TEXT,                                       -- เหตุผลที่ Re-Bid
+  -- Re-Bid Fields
+  ReBidCount INT DEFAULT 0,
+  LastReBidAt TIMESTAMP,
+  ReBidReason TEXT,
   
-  -- Reminder Tracking (New)
-  LastActionAt TIMESTAMP,                                 -- วันเวลาที่มี action ล่าสุด
-  LastReminderSentAt TIMESTAMP,                          -- วันเวลาที่ส่ง reminder ล่าสุด
-  ProcessingDays INT GENERATED ALWAYS AS                 -- จำนวนวันที่ใช้ (auto-calculated)
+  -- Reminder Tracking
+  LastActionAt TIMESTAMP,
+  LastReminderSentAt TIMESTAMP,
+  ProcessingDays INT GENERATED ALWAYS AS 
     (CASE 
         WHEN Status = 'COMPLETED' THEN 
             EXTRACT(DAY FROM UpdatedAt - CreatedAt)::INT
@@ -643,16 +619,17 @@ CREATE TABLE Rfqs (
     END) STORED,
   
   -- Flags
-  IsUrgent BOOLEAN DEFAULT FALSE,                         -- เร่งด่วน
-  IsOntime BOOLEAN DEFAULT TRUE,                          -- ทันเวลา
-  HasMedicineIcon BOOLEAN DEFAULT FALSE,                  -- มีไอคอนยา
+  IsUrgent BOOLEAN DEFAULT FALSE,              -- งานเร่ง
+  IsOntime BOOLEAN DEFAULT TRUE,               -- ทันเวลา
+  IsOverdue BOOLEAN GENERATED ALWAYS AS        -- เลย deadline
+    (RequiredQuotationDate < NOW()) STORED,
   
   -- Decline/Reject Reasons
-  DeclineReason TEXT,                                     -- เหตุผลที่ปฏิเสธ (Approver)
-  RejectReason TEXT,                                      -- เหตุผลที่ Reject (Purchasing)
+  DeclineReason TEXT,
+  RejectReason TEXT,
   
   -- Remarks
-  Remarks TEXT,                                           -- หมายเหตุ
+  Remarks TEXT,
   
   -- Audit
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -662,63 +639,33 @@ CREATE TABLE Rfqs (
   
   CONSTRAINT chk_rfq_status CHECK (Status IN 
     ('SAVE_DRAFT','PENDING','DECLINED','REJECTED','COMPLETED','RE_BID')),
-  CONSTRAINT chk_rfq_job_type CHECK (JobTypeId IN (1, 2)),  -- Only Buy or Sell for RFQ
+  CONSTRAINT chk_rfq_job_type CHECK (JobTypeId IN (1, 2)),
   CONSTRAINT chk_rfq_dates CHECK (
     QuotationDeadline > CreatedDate 
     AND (SubmissionDeadline IS NULL OR SubmissionDeadline >= QuotationDeadline)
   )
 );
 
--- Create Indexes (Enhanced)
-CREATE INDEX idx_rfqs_number ON Rfqs(RfqNumber);
-CREATE INDEX idx_rfqs_status ON Rfqs(Status) WHERE Status != 'COMPLETED';
-CREATE INDEX idx_rfqs_status_rebid ON Rfqs(Status) WHERE Status = 'RE_BID';
-CREATE INDEX idx_rfqs_company ON Rfqs(CompanyId);
-CREATE INDEX idx_rfqs_requester ON Rfqs(RequesterId);
-CREATE INDEX idx_rfqs_current_actor ON Rfqs(CurrentActorId) WHERE Status = 'PENDING';
-CREATE INDEX idx_rfqs_deadline ON Rfqs(QuotationDeadline) WHERE Status NOT IN ('COMPLETED','REJECTED');
-CREATE INDEX idx_rfqs_submission_deadline ON Rfqs(SubmissionDeadline) WHERE Status IN ('PENDING', 'RE_BID');
-CREATE INDEX idx_rfqs_reminder ON Rfqs(LastActionAt, Status) 
-  WHERE Status IN ('PENDING', 'DECLINED') AND LastReminderSentAt IS NULL;
-CREATE INDEX idx_rfqs_search ON Rfqs USING gin(to_tsvector('english', ProjectName || ' ' || COALESCE(Remarks, '')));
+COMMENT ON TABLE Rfqs IS 'ใบขอเสนอราคา';
+COMMENT ON COLUMN Rfqs.IsOverdue IS 'เลยวันที่ต้องการใบเสนอราคาแล้ว';
+COMMENT ON COLUMN Rfqs.CurrentActorReceivedAt IS 'วันที่ actor ปัจจุบันได้รับ RFQ';
+-- Note: เปลี่ยน HasMedicineIcon เป็น IsOverdue
 
--- Comments
-COMMENT ON COLUMN Rfqs.QuotationDeadline IS 'วันที่ต้องการใบเสนอราคา (Requester กำหนด)';
-COMMENT ON COLUMN Rfqs.SubmissionDeadline IS 'วันที่สิ้นสุดการเสนอราคา (Purchasing กำหนดหลังจาก approve)';
-COMMENT ON COLUMN Rfqs.ReBidCount IS 'จำนวนครั้งที่ Re-Bid';
-COMMENT ON COLUMN Rfqs.LastReBidAt IS 'วันเวลาที่ Re-Bid ล่าสุด';
-COMMENT ON COLUMN Rfqs.ReBidReason IS 'เหตุผลที่ Re-Bid';
-COMMENT ON COLUMN Rfqs.LastActionAt IS 'วันเวลาที่มี action ล่าสุด สำหรับ reminder logic';
-COMMENT ON COLUMN Rfqs.LastReminderSentAt IS 'วันเวลาที่ส่ง reminder ล่าสุด';
-COMMENT ON COLUMN Rfqs.ProcessingDays IS 'จำนวนวันที่ใช้ในการดำเนินการ (auto-calculated)';
-
--- 5.2 RFQ Items
--- ตาราง: รายการสินค้า/บริการใน RFQ
+-- 5.2 RfqItems
+-- ตาราง: รายการสินค้าใน RFQ (Updated structure)
 CREATE TABLE RfqItems (
   Id BIGSERIAL PRIMARY KEY,
   RfqId BIGINT NOT NULL REFERENCES Rfqs(Id) ON DELETE CASCADE,
-  ItemSequence INT NOT NULL,                   -- ลำดับรายการ
+  ItemSequence INT NOT NULL,                   -- ลำดับ
   
-  -- Item Details
-  ItemCode VARCHAR(50),                        -- รหัสสินค้า
-  ItemDescription TEXT NOT NULL,               -- รายละเอียดสินค้า
-  Specifications TEXT,                         -- ข้อกำหนดเฉพาะ
-  
-  -- Quantity & Unit
+  -- Item Details (ตรงกับ UI)
+  ItemDescription TEXT NOT NULL,               -- สินค้า
+  Brand VARCHAR(100),                          -- ยี่ห้อ
+  Model VARCHAR(100),                          -- รุ่น
   Quantity DECIMAL(12,4) NOT NULL,             -- จำนวน
-  UnitOfMeasure VARCHAR(50) NOT NULL,          -- หน่วยนับ
-  
-  -- Delivery
-  RequiredDeliveryDate DATE,                   -- วันที่ต้องการสินค้า
-  DeliveryLocation VARCHAR(500),               -- สถานที่ส่งมอบ
-  
-  -- Budget (Optional)
-  EstimatedUnitPrice DECIMAL(18,4),            -- ราคาต่อหน่วยโดยประมาณ
-  EstimatedTotalPrice DECIMAL(18,4),           -- ราคารวมโดยประมาณ
-  
-  -- Additional Info
+  UnitOfMeasure VARCHAR(50) NOT NULL,          -- หน่วย
+  Specifications TEXT,                         -- รายละเอียด
   Remarks TEXT,                                -- หมายเหตุ
-  AttachmentPath TEXT,                         -- ไฟล์แนบ
   
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UpdatedAt TIMESTAMP,
@@ -726,36 +673,39 @@ CREATE TABLE RfqItems (
   UNIQUE(RfqId, ItemSequence),
   CONSTRAINT chk_rfq_items_quantity CHECK (Quantity > 0)
 );
-CREATE INDEX idx_rfq_items_rfq ON RfqItems(RfqId);
 
--- 5.3 RFQ Documents
+COMMENT ON TABLE RfqItems IS 'รายการสินค้า/บริการใน RFQ';
+-- Note: ปรับ structure ให้ตรงกับ UI
+
+-- 5.3 RfqDocuments
 -- ตาราง: เอกสารแนบ RFQ
 CREATE TABLE RfqDocuments (
   Id BIGSERIAL PRIMARY KEY,
   RfqId BIGINT NOT NULL REFERENCES Rfqs(Id) ON DELETE CASCADE,
-  DocumentType VARCHAR(50) NOT NULL,           -- ประเภทเอกสาร
-  DocumentName VARCHAR(200) NOT NULL,          -- ชื่อเอกสาร
-  FileName VARCHAR(255) NOT NULL,              -- ชื่อไฟล์
-  FilePath TEXT,                               -- path ที่เก็บไฟล์
-  FileSize BIGINT,                             -- ขนาดไฟล์ (bytes)
-  MimeType VARCHAR(100),                       -- ประเภทไฟล์
+  DocumentType VARCHAR(50) NOT NULL,
+  DocumentName VARCHAR(200) NOT NULL,
+  FileName VARCHAR(255) NOT NULL,
+  FilePath TEXT,
+  FileSize BIGINT,
+  MimeType VARCHAR(100),
   UploadedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UploadedBy BIGINT REFERENCES Users(Id)
 );
-CREATE INDEX idx_rfq_documents_rfq ON RfqDocuments(RfqId);
 
--- 5.4 RFQ Required Fields (New)
--- ตาราง: กำหนดข้อมูลที่ Supplier ต้องระบุในการเสนอราคา
+COMMENT ON TABLE RfqDocuments IS 'เอกสารแนบ RFQ';
+
+-- 5.4 RfqRequiredFields
+-- ตาราง: กำหนดข้อมูลที่ Supplier ต้องกรอก
 CREATE TABLE RfqRequiredFields (
   Id BIGSERIAL PRIMARY KEY,
   RfqId BIGINT NOT NULL REFERENCES Rfqs(Id) ON DELETE CASCADE,
   
-  -- Required Fields Configuration (Checkboxes)
-  RequireMOQ BOOLEAN DEFAULT FALSE,            -- บังคับให้ระบุ MOQ
-  RequireDLT BOOLEAN DEFAULT FALSE,            -- บังคับให้ระบุระยะเวลาส่งมอบ
-  RequireCredit BOOLEAN DEFAULT FALSE,         -- บังคับให้ระบุเครดิตเทอม
-  RequireWarranty BOOLEAN DEFAULT FALSE,       -- บังคับให้ระบุระยะเวลารับประกัน
-  RequireIncoTerm BOOLEAN DEFAULT FALSE,       -- บังคับให้ระบุ Incoterms
+  -- Required Fields Configuration
+  RequireMOQ BOOLEAN DEFAULT FALSE,
+  RequireDLT BOOLEAN DEFAULT FALSE,
+  RequireCredit BOOLEAN DEFAULT FALSE,
+  RequireWarranty BOOLEAN DEFAULT FALSE,
+  RequireIncoTerm BOOLEAN DEFAULT FALSE,
   
   -- Audit
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -766,85 +716,63 @@ CREATE TABLE RfqRequiredFields (
   CONSTRAINT uk_rfq_required_fields UNIQUE(RfqId)
 );
 
--- Create Index
-CREATE INDEX idx_rfq_required_fields_rfq ON RfqRequiredFields(RfqId);
-
--- Comments
-COMMENT ON TABLE RfqRequiredFields IS 'กำหนดข้อมูลที่ Supplier ต้องระบุในการเสนอราคา - Purchasing เลือกผ่าน checkbox';
-COMMENT ON COLUMN RfqRequiredFields.RequireMOQ IS 'บังคับให้ระบุจำนวนสั่งซื้อขั้นต่ำ (หน่วย)';
-COMMENT ON COLUMN RfqRequiredFields.RequireDLT IS 'บังคับให้ระบุระยะเวลาส่งมอบ (วัน)';
-COMMENT ON COLUMN RfqRequiredFields.RequireCredit IS 'บังคับให้ระบุเครดิตเทอม (วัน)';
-COMMENT ON COLUMN RfqRequiredFields.RequireWarranty IS 'บังคับให้ระบุระยะเวลารับประกัน (วัน)';
-COMMENT ON COLUMN RfqRequiredFields.RequireIncoTerm IS 'บังคับให้ระบุเงื่อนไขการส่งมอบ (Incoterms)';
+COMMENT ON TABLE RfqRequiredFields IS 'กำหนดข้อมูลที่ Supplier ต้องระบุ';
 
 -- =============================================
 -- SECTION 6: WORKFLOW & APPROVAL
--- ตารางจัดการ Workflow และการอนุมัติ
 -- =============================================
 
--- 6.1 Approval Matrix
--- ตาราง: กำหนดระดับการอนุมัติตามวงเงิน
-CREATE TABLE ApprovalMatrix (
-  Id BIGSERIAL PRIMARY KEY,
-  CompanyId BIGINT NOT NULL REFERENCES Companies(Id),
-  CategoryId BIGINT REFERENCES Categories(Id),
-  SubcategoryId BIGINT REFERENCES Subcategories(Id),
-  
-  -- Amount Range
-  MinAmount DECIMAL(15,2),                     -- วงเงินขั้นต่ำ
-  MaxAmount DECIMAL(15,2),                     -- วงเงินสูงสุด
-  
-  -- Required Approval Levels
-  RequiredLevels SMALLINT NOT NULL,            -- จำนวนระดับที่ต้องอนุมัติ
-  Level1RoleId BIGINT REFERENCES Roles(Id),    -- บทบาทระดับ 1
-  Level2RoleId BIGINT REFERENCES Roles(Id),    -- บทบาทระดับ 2
-  Level3RoleId BIGINT REFERENCES Roles(Id),    -- บทบาทระดับ 3
-  
-  -- Response Time (in days)
-  ResponseTimeDays INT DEFAULT 2,              -- ระยะเวลาตอบกลับ (วัน)
-  
-  IsActive BOOLEAN DEFAULT TRUE,
-  CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UpdatedAt TIMESTAMP
-);
-
--- 6.2 RFQ Status History
--- ตาราง: ประวัติการเปลี่ยนสถานะ RFQ
+-- 6.1 RfqStatusHistory
+-- ตาราง: ประวัติการเปลี่ยนสถานะ
 CREATE TABLE RfqStatusHistory (
   Id BIGSERIAL PRIMARY KEY,
   RfqId BIGINT NOT NULL REFERENCES Rfqs(Id),
   
   -- Status Change
-  FromStatus VARCHAR(20),                      -- สถานะเดิม
-  ToStatus VARCHAR(20) NOT NULL,               -- สถานะใหม่
-  ActionType VARCHAR(50) NOT NULL,             -- ประเภทการกระทำ
+  FromStatus VARCHAR(20),
+  ToStatus VARCHAR(20) NOT NULL,
+  ActionType VARCHAR(50) NOT NULL,
   
   -- Actor Information
   ActorId BIGINT NOT NULL REFERENCES Users(Id),
-  ActorRole VARCHAR(30),                       -- บทบาทของผู้กระทำ
-  ApprovalLevel SMALLINT,                      -- ระดับการอนุมัติ
+  ActorRole VARCHAR(30),
+  ApprovalLevel SMALLINT,
   
   -- Decision Details
-  Decision VARCHAR(20),                        -- APPROVED, DECLINED, REJECTED
-  Reason TEXT,                                 -- เหตุผล
-  Comments TEXT,                               -- ความคิดเห็น
+  Decision VARCHAR(20),
+  Reason TEXT,
+  Comments TEXT,
   
   -- Timestamp
   ActionAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   
   CONSTRAINT chk_decision CHECK (Decision IN ('APPROVED','DECLINED','REJECTED','SUBMITTED'))
 );
-CREATE INDEX idx_rfq_status_history_rfq ON RfqStatusHistory(RfqId);
-CREATE INDEX idx_rfq_status_history_actor ON RfqStatusHistory(ActorId);
 
--- Note: WorkflowRules table removed - using code-based workflow engine instead
+COMMENT ON TABLE RfqStatusHistory IS 'ประวัติการเปลี่ยนสถานะ RFQ';
+
+-- 6.2 RfqActorTimeline
+-- ตาราง: Timeline การทำงานของแต่ละ Actor
+CREATE TABLE RfqActorTimeline (
+  Id BIGSERIAL PRIMARY KEY,
+  RfqId BIGINT NOT NULL REFERENCES Rfqs(Id),
+  ActorId BIGINT NOT NULL REFERENCES Users(Id),
+  ActorRole VARCHAR(30) NOT NULL,
+  ReceivedAt TIMESTAMP NOT NULL,
+  ActionAt TIMESTAMP,
+  ResponseTimeDays INT NOT NULL,
+  IsOntime BOOLEAN,
+  
+  CONSTRAINT uk_rfq_actor UNIQUE(RfqId, ActorId, ReceivedAt)
+);
+
+COMMENT ON TABLE RfqActorTimeline IS 'Timeline การทำงานของแต่ละ Actor';
 
 -- =============================================
 -- SECTION 7: QUOTATION MANAGEMENT
--- ตารางจัดการใบเสนอราคาจาก Supplier
 -- =============================================
 
--- 7.1 RFQ Invitations
+-- 7.1 RfqInvitations
 -- ตาราง: การเชิญ Supplier เสนอราคา
 CREATE TABLE RfqInvitations (
   Id BIGSERIAL PRIMARY KEY,
@@ -855,7 +783,7 @@ CREATE TABLE RfqInvitations (
   InvitedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   InvitedByUserId BIGINT NOT NULL REFERENCES Users(Id),
   
-  -- Response Tracking (Updated)
+  -- Response Tracking
   ResponseStatus VARCHAR(30) DEFAULT 'NO_RESPONSE',
   RespondedAt TIMESTAMP,
   
@@ -865,17 +793,17 @@ CREATE TABLE RfqInvitations (
   RespondedByContactId BIGINT REFERENCES SupplierContacts(Id),  -- Contact ที่ตอบรับ
   
   -- Change Tracking
-  DecisionChangeCount INT DEFAULT 0,           -- จำนวนครั้งที่เปลี่ยนใจ
-  LastDecisionChangeAt TIMESTAMP,              -- เวลาที่เปลี่ยนใจล่าสุด
+  DecisionChangeCount INT DEFAULT 0,
+  LastDecisionChangeAt TIMESTAMP,
   
-  -- Re-Bid Tracking (New)
-  ReBidCount INT DEFAULT 0,                    -- จำนวนครั้งที่เข้าร่วม Re-Bid
-  LastReBidAt TIMESTAMP,                       -- วันเวลาที่ตอบรับ Re-Bid ล่าสุด
+  -- Re-Bid Tracking
+  ReBidCount INT DEFAULT 0,
+  LastReBidAt TIMESTAMP,
   
-  -- Audit Fields (New)
-  RespondedIpAddress INET,                     -- IP Address ที่ตอบรับ
-  RespondedUserAgent TEXT,                     -- Browser/Device info
-  RespondedDeviceInfo TEXT,                    -- Device details
+  -- Audit Fields
+  RespondedIpAddress INET,
+  RespondedUserAgent TEXT,
+  RespondedDeviceInfo TEXT,
   
   -- Auto Actions
   AutoDeclinedAt TIMESTAMP,
@@ -884,48 +812,32 @@ CREATE TABLE RfqInvitations (
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UpdatedAt TIMESTAMP,
   
-  -- Constraints
   CONSTRAINT uk_rfq_supplier UNIQUE(RfqId, SupplierId),
   CONSTRAINT chk_response_status CHECK (ResponseStatus IN ('NO_RESPONSE','RESPONDED')),
   CONSTRAINT chk_decision CHECK (Decision IN 
     ('PENDING','PARTICIPATING','NOT_PARTICIPATING','AUTO_DECLINED'))
 );
 
--- Create Indexes
-CREATE INDEX idx_rfq_invitations_rfq ON RfqInvitations(RfqId);
-CREATE INDEX idx_rfq_invitations_supplier ON RfqInvitations(SupplierId);
-CREATE INDEX idx_rfq_invitations_responded_contact ON RfqInvitations(RespondedByContactId) 
-  WHERE RespondedByContactId IS NOT NULL;
-CREATE INDEX idx_rfq_invitations_pending ON RfqInvitations(RfqId) 
-  WHERE ResponseStatus = 'NO_RESPONSE';
-CREATE INDEX idx_rfq_invitations_decision_participating ON RfqInvitations(SupplierId, Decision)
-  WHERE Decision = 'PARTICIPATING';
+COMMENT ON TABLE RfqInvitations IS 'การเชิญ Supplier เสนอราคา';
 
--- Comments
-COMMENT ON TABLE RfqInvitations IS 'การเชิญ Supplier เสนอราคาสำหรับแต่ละ RFQ';
-COMMENT ON COLUMN RfqInvitations.ResponseStatus IS 'NO_RESPONSE=ยังไม่ตอบ, RESPONDED=ตอบแล้ว';
-COMMENT ON COLUMN RfqInvitations.Decision IS 'PENDING=รอ, PARTICIPATING=เข้าร่วม, NOT_PARTICIPATING=ไม่เข้าร่วม, AUTO_DECLINED=หมดเวลา';
-COMMENT ON COLUMN RfqInvitations.RespondedByContactId IS 'Contact คนที่กดเข้าร่วม - คนนี้จะเป็นคนเสนอราคา';
-COMMENT ON COLUMN RfqInvitations.RespondedIpAddress IS 'IP Address ของ Contact ที่ตอบรับ';
-COMMENT ON COLUMN RfqInvitations.ReBidCount IS 'จำนวนครั้งที่เข้าร่วม Re-Bid';
-
--- 7.2 RFQ Invitation History
--- ตาราง: ประวัติการเปลี่ยนแปลงการตอบรับ
+-- 7.2 RfqInvitationHistory
+-- ตาราง: ประวัติการเปลี่ยนการตอบรับ
 CREATE TABLE RfqInvitationHistory (
   Id BIGSERIAL PRIMARY KEY,
   InvitationId BIGINT NOT NULL REFERENCES RfqInvitations(Id),
   
   -- Change Information
-  DecisionSequence INT NOT NULL,               -- ลำดับการเปลี่ยนแปลง (1,2,3,...)
-  FromDecision VARCHAR(30),                    -- เปลี่ยนจากสถานะอะไร
-  ToDecision VARCHAR(30) NOT NULL,             -- เปลี่ยนเป็นสถานะอะไร
+  DecisionSequence INT NOT NULL,
+  FromDecision VARCHAR(30),
+  ToDecision VARCHAR(30) NOT NULL,
   ChangedByContactId BIGINT REFERENCES SupplierContacts(Id),
   ChangedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   ChangeReason TEXT,
   
   CONSTRAINT uk_invitation_sequence UNIQUE(InvitationId, DecisionSequence)
 );
-CREATE INDEX idx_invitation_history_invitation ON RfqInvitationHistory(InvitationId);
+
+COMMENT ON TABLE RfqInvitationHistory IS 'ประวัติการเปลี่ยนการตอบรับคำเชิญ';
 
 -- 7.3 Quotations
 -- ตาราง: ใบเสนอราคาจาก Supplier
@@ -951,20 +863,18 @@ CREATE TABLE Quotations (
   LockedAt TIMESTAMP,
   
   -- Terms
-  PaymentTerms TEXT,                           -- เงื่อนไขการชำระเงิน
-  DeliveryTerms TEXT,                          -- เงื่อนไขการส่งมอบ
+  PaymentTerms TEXT,
+  DeliveryTerms TEXT,
   IncotermId BIGINT REFERENCES Incoterms(Id),
   
-  -- Status
-  Status VARCHAR(20) DEFAULT 'DRAFT',
+  -- Status (Simplified - no DRAFT, no REVISED)
+  Status VARCHAR(20) DEFAULT 'SUBMITTED',
   SubmittedAt TIMESTAMP,
-  IsWinner BOOLEAN DEFAULT FALSE,              -- เป็นผู้ชนะหรือไม่
-  WinnerRanking INT,                           -- ลำดับที่ชนะ
-  SelectionReason TEXT,                        -- เหตุผลที่เลือก
-  
-  -- Revision Tracking
-  RevisionCount INT DEFAULT 0,                 -- จำนวนครั้งที่แก้ไข
-  LastRevisedAt TIMESTAMP,
+  IsWinner BOOLEAN DEFAULT FALSE,
+  WinnerRanking INT,
+  SelectionReason TEXT,
+  SystemSuggestedRank INT,                     -- อันดับที่ระบบแนะนำ
+  SelectionMatchSystem BOOLEAN,                -- เลือกตรงกับระบบหรือไม่
   
   -- Audit
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -974,19 +884,16 @@ CREATE TABLE Quotations (
   
   UNIQUE(RfqId, SupplierId),
   CONSTRAINT chk_quotation_status CHECK (Status IN 
-    ('DRAFT','SUBMITTED','REVISED','SELECTED','NOT_SELECTED')),
+    ('SUBMITTED','SELECTED','NOT_SELECTED')),
   CONSTRAINT chk_quotation_amount CHECK (TotalAmount >= 0)
 );
 
--- Create Indexes
-CREATE INDEX idx_quotations_rfq ON Quotations(RfqId);
-CREATE INDEX idx_quotations_supplier ON Quotations(SupplierId);
-CREATE INDEX idx_quotations_status ON Quotations(Status);
-CREATE INDEX idx_quotations_comparison ON Quotations(RfqId, TotalAmount) 
-  WHERE Status = 'SUBMITTED';
+COMMENT ON TABLE Quotations IS 'ใบเสนอราคาจาก Supplier';
+COMMENT ON COLUMN Quotations.SystemSuggestedRank IS 'อันดับที่ระบบแนะนำตาม JobType rule';
+-- Note: ลบ DRAFT, REVISED และ RevisionCount ออก
 
--- 7.4 Quotation Items
--- ตาราง: รายการสินค้าในใบเสนอราคา
+-- 7.4 QuotationItems
+-- ตาราง: รายการในใบเสนอราคา
 CREATE TABLE QuotationItems (
   Id BIGSERIAL PRIMARY KEY,
   QuotationId BIGINT NOT NULL REFERENCES Quotations(Id) ON DELETE CASCADE,
@@ -1001,11 +908,11 @@ CREATE TABLE QuotationItems (
   ConvertedUnitPrice DECIMAL(18,4),
   ConvertedTotalPrice DECIMAL(18,4),
   
-  -- Terms
-  MinOrderQty INT,                             -- จำนวนสั่งซื้อขั้นต่ำ
-  DeliveryDays INT,                            -- ระยะเวลาส่งมอบ (วัน)
-  CreditDays INT,                              -- เครดิตเทอม (วัน)
-  WarrantyDays INT,                            -- ระยะเวลารับประกัน (วัน)
+  -- Terms (Required fields from Purchasing)
+  MinOrderQty INT,                             -- MOQ
+  DeliveryDays INT,                            -- DLT
+  CreditDays INT,                              -- Credit
+  WarrantyDays INT,                            -- Warranty
   
   -- Remarks
   Remarks TEXT,
@@ -1014,9 +921,10 @@ CREATE TABLE QuotationItems (
   
   UNIQUE(QuotationId, RfqItemId)
 );
-CREATE INDEX idx_quotation_items_quotation ON QuotationItems(QuotationId);
 
--- 7.5 Quotation Documents
+COMMENT ON TABLE QuotationItems IS 'รายการในใบเสนอราคา';
+
+-- 7.5 QuotationDocuments
 -- ตาราง: เอกสารแนบใบเสนอราคา
 CREATE TABLE QuotationDocuments (
   Id BIGSERIAL PRIMARY KEY,
@@ -1030,76 +938,84 @@ CREATE TABLE QuotationDocuments (
   UploadedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UploadedBy BIGINT
 );
-CREATE INDEX idx_quotation_documents_quotation ON QuotationDocuments(QuotationId);
+
+COMMENT ON TABLE QuotationDocuments IS 'เอกสารแนบใบเสนอราคา';
 
 -- =============================================
 -- SECTION 8: COMMUNICATION & Q&A
--- ตารางจัดการการสื่อสารระหว่าง Requester/Purchasing กับ Supplier
 -- =============================================
 
--- 8.1 RFQ Questions and Answers
+-- 8.1 RfqQuestions (Renamed from RfqQnA)
 -- ตาราง: คำถาม-คำตอบเกี่ยวกับ RFQ
-CREATE TABLE RfqQnA (
+CREATE TABLE RfqQuestions (
   Id BIGSERIAL PRIMARY KEY,
   RfqId BIGINT NOT NULL REFERENCES Rfqs(Id) ON DELETE CASCADE,
   SupplierId BIGINT NOT NULL REFERENCES Suppliers(Id),
   
   -- Question
-  Question TEXT NOT NULL,                      -- คำถาม
-  AskedBy BIGINT NOT NULL,                     -- ผู้ถาม (Contact ID)
-  AskedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- วันเวลาที่ถาม
+  Question TEXT NOT NULL,
+  AskedBy BIGINT NOT NULL REFERENCES SupplierContacts(Id),
+  AskedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   
   -- Answer
-  Answer TEXT,                                 -- คำตอบ
-  AnsweredBy BIGINT,                           -- ผู้ตอบ (User ID)
-  AnsweredAt TIMESTAMP,                        -- วันเวลาที่ตอบ
+  Answer TEXT,
+  AnsweredBy BIGINT REFERENCES Users(Id),
+  AnsweredAt TIMESTAMP,
   
   -- Status
-  Status VARCHAR(20) DEFAULT 'AWAITING',       -- สถานะ: AWAITING, ANSWERED
-  IsPublic BOOLEAN DEFAULT FALSE,              -- แชร์กับ Supplier ทุกราย
+  Status VARCHAR(20) DEFAULT 'AWAITING',
+  IsPublic BOOLEAN DEFAULT FALSE,
   
-  CONSTRAINT chk_qna_status CHECK (Status IN ('AWAITING','ANSWERED'))
+  CONSTRAINT chk_question_status CHECK (Status IN ('AWAITING','ANSWERED'))
 );
 
--- Create Indexes
-CREATE INDEX idx_rfq_qna_rfq ON RfqQnA(RfqId);
-CREATE INDEX idx_rfq_qna_supplier ON RfqQnA(SupplierId);
-CREATE INDEX idx_rfq_qna_status ON RfqQnA(Status) WHERE Status = 'AWAITING';
+COMMENT ON TABLE RfqQuestions IS 'คำถาม-คำตอบระหว่าง Supplier และ Purchasing';
+COMMENT ON COLUMN RfqQuestions.AskedBy IS 'Supplier Contact ที่ถาม';
+COMMENT ON COLUMN RfqQuestions.AnsweredBy IS 'Purchasing User ที่ตอบ';
 
 -- =============================================
 -- SECTION 9: NOTIFICATION SYSTEM
--- ตารางจัดการการแจ้งเตือนในระบบ
 -- =============================================
 
 -- 9.1 Notifications
--- ตาราง: การแจ้งเตือน
+-- ตาราง: การแจ้งเตือน (Enhanced for SMS & SignalR)
 CREATE TABLE Notifications (
   Id BIGSERIAL PRIMARY KEY,
-  Type VARCHAR(50) NOT NULL,                   -- ประเภทการแจ้งเตือน
-  Priority VARCHAR(20) DEFAULT 'NORMAL',       -- ระดับความสำคัญ
-  NotificationType VARCHAR(30) DEFAULT 'INFO', -- ประเภทสำหรับแสดง icon (New)
+  Type VARCHAR(50) NOT NULL,
+  Priority VARCHAR(20) DEFAULT 'NORMAL',
+  NotificationType VARCHAR(30) DEFAULT 'INFO',
   
   -- Target
-  UserId BIGINT REFERENCES Users(Id),          -- ผู้รับ (User)
-  RfqId BIGINT REFERENCES Rfqs(Id),            -- เกี่ยวกับ RFQ
-  QuotationId BIGINT REFERENCES Quotations(Id),-- เกี่ยวกับใบเสนอราคา
+  UserId BIGINT REFERENCES Users(Id),
+  ContactId BIGINT REFERENCES SupplierContacts(Id),
+  RfqId BIGINT REFERENCES Rfqs(Id),
+  QuotationId BIGINT REFERENCES Quotations(Id),
   
   -- Content
-  Title VARCHAR(200) NOT NULL,                 -- หัวข้อ
-  Message TEXT NOT NULL,                       -- ข้อความ
-  IconType VARCHAR(20),                        -- ไอคอน (✅, ❌, 🖊, 📨)
-  ActionUrl TEXT,                               -- ลิงก์ไปยังหน้าที่เกี่ยวข้อง
+  Title VARCHAR(200) NOT NULL,
+  Message TEXT NOT NULL,
+  IconType VARCHAR(20),
+  ActionUrl TEXT,
   
   -- Status
-  IsRead BOOLEAN DEFAULT FALSE,                -- อ่านแล้วหรือยัง
-  ReadAt TIMESTAMP,                            -- วันเวลาที่อ่าน
+  IsRead BOOLEAN DEFAULT FALSE,
+  ReadAt TIMESTAMP,
   
   -- Delivery Channels
-  Channels TEXT[],                             -- ช่องทางส่ง: {IN_APP, EMAIL, SMS}
+  Channels TEXT[],                             -- {IN_APP, EMAIL, SMS}
   EmailSent BOOLEAN DEFAULT FALSE,
   EmailSentAt TIMESTAMP,
   SmsSent BOOLEAN DEFAULT FALSE,
   SmsSentAt TIMESTAMP,
+  
+  -- SMS Support (New)
+  RecipientPhone VARCHAR(20),
+  SmsProvider VARCHAR(20),                     -- Twilio, etc.
+  SmsCost DECIMAL(10,4),
+  
+  -- SignalR Support (New)
+  SignalRConnectionId VARCHAR(100),
+  MessageQueueId UUID,                         -- Wolverine message ID
   
   -- Scheduling
   ScheduledFor TIMESTAMP,                      -- กำหนดส่งเมื่อไหร่
@@ -1110,17 +1026,12 @@ CREATE TABLE Notifications (
   CONSTRAINT chk_notification_priority CHECK (Priority IN ('CRITICAL','HIGH','NORMAL','LOW'))
 );
 
--- Create Indexes
-CREATE INDEX idx_notifications_user ON Notifications(UserId) WHERE IsRead = FALSE;
-CREATE INDEX idx_notifications_scheduled ON Notifications(ScheduledFor) 
-  WHERE ProcessedAt IS NULL AND ScheduledFor IS NOT NULL;
-CREATE INDEX idx_notifications_unread_count ON Notifications(UserId, IsRead) 
-  WHERE IsRead = FALSE;
+COMMENT ON TABLE Notifications IS 'การแจ้งเตือนในระบบ';
+COMMENT ON COLUMN Notifications.RecipientPhone IS 'เบอร์โทรสำหรับส่ง SMS';
+COMMENT ON COLUMN Notifications.SignalRConnectionId IS 'Connection ID สำหรับ SignalR';
+COMMENT ON COLUMN Notifications.MessageQueueId IS 'Wolverine message ID';
 
--- Comments
-COMMENT ON COLUMN Notifications.NotificationType IS 'ประเภทการแจ้งเตือน: SUCCESS, ERROR, WARNING, INFO, MESSAGE - Frontend ใช้แสดง icon';
-
--- 9.2 Notification Rules
+-- 9.2 NotificationRules
 -- ตาราง: กฎการส่งการแจ้งเตือน
 CREATE TABLE NotificationRules (
   Id BIGSERIAL PRIMARY KEY,
@@ -1132,44 +1043,48 @@ CREATE TABLE NotificationRules (
   HoursBeforeDeadline INT,                     -- จำนวนชั่วโมงก่อน deadline
   
   -- Recipients
-  NotifyRecipients TEXT[],                     -- ผู้รับ: {SELF, REQUESTER, SUPERVISOR, ALL_SUPPLIERS}
+  NotifyRecipients TEXT[],
   
   -- Configuration
   Priority VARCHAR(20) DEFAULT 'NORMAL',
-  Channels TEXT[],                             -- ช่องทางส่ง: {IN_APP, EMAIL, SMS}
+  Channels TEXT[],
   
   -- Template
-  TitleTemplate TEXT,                          -- template หัวข้อ
-  MessageTemplate TEXT,                        -- template ข้อความ
+  TitleTemplate TEXT,
+  MessageTemplate TEXT,
   
   IsActive BOOLEAN DEFAULT TRUE,
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 9.3 Email Templates
+COMMENT ON TABLE NotificationRules IS 'กฎการส่งการแจ้งเตือน';
+
+-- 9.3 EmailTemplates
 -- ตาราง: Template อีเมล
 CREATE TABLE EmailTemplates (
   Id BIGSERIAL PRIMARY KEY,
-  TemplateCode VARCHAR(50) UNIQUE NOT NULL,    -- รหัส template
-  TemplateName VARCHAR(100) NOT NULL,          -- ชื่อ template
+  TemplateCode VARCHAR(50) UNIQUE NOT NULL,
+  TemplateName VARCHAR(100) NOT NULL,
   
   -- Content
-  SubjectTemplate TEXT NOT NULL,               -- template หัวข้ออีเมล
-  BodyTemplateHtml TEXT,                       -- template body HTML
-  BodyTemplateText TEXT,                       -- template body Text
+  SubjectTemplate TEXT NOT NULL,
+  BodyTemplateHtml TEXT,
+  BodyTemplateText TEXT,
   
   -- Variables
-  AvailableVariables TEXT[],                   -- ตัวแปรที่ใช้ได้
+  AvailableVariables TEXT[],
   
   -- Language
-  Language VARCHAR(5) DEFAULT 'th',            -- ภาษา: th, en
+  Language VARCHAR(5) DEFAULT 'th',
   
   IsActive BOOLEAN DEFAULT TRUE,
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UpdatedAt TIMESTAMP
 );
 
--- 9.4 Notification Queue
+COMMENT ON TABLE EmailTemplates IS 'Template สำหรับส่งอีเมล';
+
+-- 9.4 NotificationQueue
 -- ตาราง: คิวการส่งการแจ้งเตือน
 CREATE TABLE NotificationQueue (
   Id BIGSERIAL PRIMARY KEY,
@@ -1178,38 +1093,35 @@ CREATE TABLE NotificationQueue (
   Recipient VARCHAR(255) NOT NULL,             -- ผู้รับ (email/phone)
   
   -- Content
-  Subject VARCHAR(500),                        -- หัวข้อ
-  Content TEXT,                                -- เนื้อหา
+  Subject VARCHAR(500),
+  Content TEXT,
   
   -- Processing
   Priority VARCHAR(20) DEFAULT 'NORMAL',
   Status VARCHAR(20) DEFAULT 'PENDING',
-  Attempts INT DEFAULT 0,                      -- จำนวนครั้งที่พยายามส่ง
-  MaxAttempts INT DEFAULT 3,                   -- จำนวนครั้งสูงสุด
+  Attempts INT DEFAULT 0,
+  MaxAttempts INT DEFAULT 3,
   
   -- Scheduling
   ScheduledFor TIMESTAMP,
   ProcessedAt TIMESTAMP,
   
   -- Error Handling
-  LastError TEXT,                              -- error ล่าสุด
-  LastAttemptAt TIMESTAMP,                     -- พยายามส่งล่าสุดเมื่อไหร่
+  LastError TEXT,
+  LastAttemptAt TIMESTAMP,
   
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   
   CONSTRAINT chk_queue_status CHECK (Status IN ('PENDING','PROCESSING','SENT','FAILED'))
 );
 
--- Create Index
-CREATE INDEX idx_notification_queue_pending ON NotificationQueue(ScheduledFor, Priority)
-  WHERE Status = 'PENDING';
+COMMENT ON TABLE NotificationQueue IS 'คิวการส่งการแจ้งเตือน';
 
 -- =============================================
 -- SECTION 10: FINANCIAL & EXCHANGE RATES
--- ตารางจัดการอัตราแลกเปลี่ยนและข้อมูลการเงิน
 -- =============================================
 
--- 10.1 Exchange Rates
+-- 10.1 ExchangeRates
 -- ตาราง: อัตราแลกเปลี่ยน
 CREATE TABLE ExchangeRates (
   Id BIGSERIAL PRIMARY KEY,
@@ -1220,8 +1132,8 @@ CREATE TABLE ExchangeRates (
   ExpiryDate DATE,                                          -- วันหมดอายุ
   
   -- Source Information
-  Source VARCHAR(50) DEFAULT 'MANUAL',         -- แหล่งที่มา: MANUAL, API, BOT, BANK
-  SourceReference VARCHAR(100),                -- อ้างอิงแหล่งที่มา
+  Source VARCHAR(50) DEFAULT 'MANUAL',
+  SourceReference VARCHAR(100),
   
   -- Audit
   IsActive BOOLEAN DEFAULT TRUE,
@@ -1237,50 +1149,48 @@ CREATE TABLE ExchangeRates (
   )
 );
 
--- Create Index
-CREATE INDEX idx_exchange_rates_active ON ExchangeRates(FromCurrencyId, ToCurrencyId, EffectiveDate)
-  WHERE IsActive = TRUE;
+COMMENT ON TABLE ExchangeRates IS 'อัตราแลกเปลี่ยน';
 
--- 10.2 Exchange Rate History
--- ตาราง: ประวัติการเปลี่ยนแปลงอัตราแลกเปลี่ยน
+-- 10.2 ExchangeRateHistory
+-- ตาราง: ประวัติการเปลี่ยนแปลงอัตรา
 CREATE TABLE ExchangeRateHistory (
   Id BIGSERIAL PRIMARY KEY,
   ExchangeRateId BIGINT NOT NULL REFERENCES ExchangeRates(Id),
-  OldRate DECIMAL(15,6),                       -- อัตราเดิม
-  NewRate DECIMAL(15,6),                       -- อัตราใหม่
+  OldRate DECIMAL(15,6),
+  NewRate DECIMAL(15,6),
   ChangedBy BIGINT NOT NULL REFERENCES Users(Id),
   ChangedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  ChangeReason TEXT                            -- เหตุผลที่เปลี่ยน
+  ChangeReason TEXT
 );
+
+COMMENT ON TABLE ExchangeRateHistory IS 'ประวัติการเปลี่ยนแปลงอัตราแลกเปลี่ยน';
 
 -- =============================================
 -- SECTION 11: AUTHENTICATION & SECURITY
--- ตารางจัดการ Authentication และ Security
 -- =============================================
 
 -- 11.1 RefreshTokens
 -- ตาราง: JWT Refresh Tokens
 CREATE TABLE RefreshTokens (
   Id BIGSERIAL PRIMARY KEY,
-  Token VARCHAR(500) UNIQUE NOT NULL,          -- Refresh token
+  Token VARCHAR(500) UNIQUE NOT NULL,
   
-  -- User reference (รองรับทั้ง 2 user types)
-  UserType VARCHAR(20) NOT NULL,               -- ประเภทผู้ใช้
-  UserId BIGINT,                               -- For Employee users
-  ContactId BIGINT,                            -- For Supplier contacts
+  -- User reference
+  UserType VARCHAR(20) NOT NULL,
+  UserId BIGINT,
+  ContactId BIGINT,
   
   -- Token information
-  ExpiresAt TIMESTAMP NOT NULL,                -- วันหมดอายุ
+  ExpiresAt TIMESTAMP NOT NULL,
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CreatedByIp VARCHAR(45),                     -- IP ที่สร้าง token
+  CreatedByIp VARCHAR(45),
   
   -- Revoke information
-  RevokedAt TIMESTAMP,                         -- วันที่ revoke
-  RevokedByIp VARCHAR(45),                     -- IP ที่ revoke
-  ReplacedByToken VARCHAR(500),                -- Token ใหม่ที่แทนที่
-  ReasonRevoked VARCHAR(100),                  -- เหตุผลที่ revoke
+  RevokedAt TIMESTAMP,
+  RevokedByIp VARCHAR(45),
+  ReplacedByToken VARCHAR(500),
+  ReasonRevoked VARCHAR(100),
   
-  -- Constraints
   CONSTRAINT chk_refresh_user_type CHECK (UserType IN ('Employee', 'SupplierContact')),
   CONSTRAINT chk_refresh_user_ref CHECK (
     (UserType = 'Employee' AND UserId IS NOT NULL AND ContactId IS NULL) OR
@@ -1288,23 +1198,7 @@ CREATE TABLE RefreshTokens (
   )
 );
 
--- Create Indexes
-CREATE INDEX idx_refresh_tokens_user ON RefreshTokens(UserId) 
-  WHERE UserType = 'Employee';
-CREATE INDEX idx_refresh_tokens_contact ON RefreshTokens(ContactId) 
-  WHERE UserType = 'SupplierContact';
-CREATE INDEX idx_refresh_tokens_active ON RefreshTokens(Token) 
-  WHERE RevokedAt IS NULL AND ExpiresAt > NOW();
-
--- Comments
-COMMENT ON TABLE RefreshTokens IS 'JWT Refresh Tokens สำหรับ Authentication';
-COMMENT ON COLUMN RefreshTokens.UserType IS 'ประเภทผู้ใช้: Employee=พนักงาน, SupplierContact=ผู้ติดต่อ Supplier';
-COMMENT ON COLUMN RefreshTokens.UserId IS 'User ID (ถ้าเป็นพนักงาน)';
-COMMENT ON COLUMN RefreshTokens.ContactId IS 'Contact ID (ถ้าเป็น Supplier)';
-COMMENT ON COLUMN RefreshTokens.ExpiresAt IS 'วันเวลาหมดอายุ';
-COMMENT ON COLUMN RefreshTokens.RevokedAt IS 'วันเวลาที่ถูก revoke (NULL = ยังใช้งานอยู่)';
-COMMENT ON COLUMN RefreshTokens.ReplacedByToken IS 'Token ใหม่ที่แทนที่ (Refresh Token Rotation)';
-COMMENT ON COLUMN RefreshTokens.ReasonRevoked IS 'เหตุผล: Logout, Expired, Replaced, Revoked';
+COMMENT ON TABLE RefreshTokens IS 'JWT Refresh Tokens';
 
 -- 11.2 LoginHistory
 -- ตาราง: ประวัติการ Login/Logout
@@ -1312,98 +1206,77 @@ CREATE TABLE LoginHistory (
   Id BIGSERIAL PRIMARY KEY,
   
   -- User reference
-  UserType VARCHAR(20) NOT NULL,               -- ประเภทผู้ใช้
-  UserId BIGINT,                               -- User ID (พนักงาน)
-  ContactId BIGINT,                            -- Contact ID (Supplier)
-  Email VARCHAR(100),                          -- อีเมลที่ใช้ login
+  UserType VARCHAR(20) NOT NULL,
+  UserId BIGINT,
+  ContactId BIGINT,
+  Email VARCHAR(100),
   
   -- Login information
-  LoginAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- วันเวลาที่ login
-  LoginIp VARCHAR(45),                         -- IP Address
-  UserAgent TEXT,                              -- Browser/Device info
-  DeviceInfo TEXT,                             -- Device details
+  LoginAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  LoginIp VARCHAR(45),
+  UserAgent TEXT,
+  DeviceInfo TEXT,
   
-  -- Location (optional - จาก IP Geolocation)
-  Country VARCHAR(100),                        -- ประเทศ
-  City VARCHAR(100),                           -- เมือง
+  -- Location
+  Country VARCHAR(100),
+  City VARCHAR(100),
   
   -- Result
-  Success BOOLEAN NOT NULL,                    -- สำเร็จหรือไม่
-  FailureReason VARCHAR(200),                  -- เหตุผลที่ล้มเหลว
+  Success BOOLEAN NOT NULL,
+  FailureReason VARCHAR(200),
   
   -- Session information
-  SessionId VARCHAR(100),                      -- Session ID
+  SessionId VARCHAR(100),
   RefreshTokenId BIGINT REFERENCES RefreshTokens(Id),
-  LogoutAt TIMESTAMP,                          -- วันเวลาที่ logout
-  LogoutType VARCHAR(20),                      -- ประเภท logout
+  LogoutAt TIMESTAMP,
+  LogoutType VARCHAR(20),
   
-  -- Constraints
   CONSTRAINT chk_login_user_type CHECK (UserType IN ('Employee', 'SupplierContact'))
 );
 
--- Create Indexes
-CREATE INDEX idx_login_history_user ON LoginHistory(UserId) 
-  WHERE UserType = 'Employee';
-CREATE INDEX idx_login_history_contact ON LoginHistory(ContactId) 
-  WHERE UserType = 'SupplierContact';
-CREATE INDEX idx_login_history_date ON LoginHistory(LoginAt DESC);
-CREATE INDEX idx_login_history_email ON LoginHistory(Email);
-
--- Comments
-COMMENT ON TABLE LoginHistory IS 'ประวัติการ Login/Logout ทุกครั้ง - Audit Trail';
-COMMENT ON COLUMN LoginHistory.Success IS 'TRUE = login สำเร็จ, FALSE = login ล้มเหลว';
-COMMENT ON COLUMN LoginHistory.FailureReason IS 'สาเหตุที่ login ไม่สำเร็จ';
-COMMENT ON COLUMN LoginHistory.LogoutType IS 'MANUAL=ผู้ใช้ logout เอง, TIMEOUT=หมดเวลา, FORCED=ถูกบังคับ logout';
+COMMENT ON TABLE LoginHistory IS 'ประวัติการ Login/Logout';
 
 -- =============================================
--- SECTION 12: SYSTEM & AUDIT (HYBRID APPROACH)
--- ตารางสำหรับ Audit Trail และ System Configuration
--- Note: Using hybrid approach - critical data in DB, others in logging system
+-- SECTION 12: SYSTEM & AUDIT (Hybrid Approach)
 -- =============================================
 
--- 12.1 Activity Logs (Hybrid - Critical Actions Only)
--- ตาราง: บันทึกกิจกรรมสำคัญในระบบ
+-- 12.1 ActivityLogs
+-- ตาราง: บันทึกกิจกรรมสำคัญ (Critical actions only)
 CREATE TABLE ActivityLogs (
   Id BIGSERIAL PRIMARY KEY,
-  UserId BIGINT REFERENCES Users(Id),          -- ผู้ทำกิจกรรม
-  CompanyId BIGINT REFERENCES Companies(Id),   -- บริษัทที่เกี่ยวข้อง
+  UserId BIGINT REFERENCES Users(Id),
+  CompanyId BIGINT REFERENCES Companies(Id),
   
   -- Activity Details
-  Module VARCHAR(50),                          -- โมดูลที่เกิดกิจกรรม
-  Action VARCHAR(100),                         -- การกระทำ (CREATE, UPDATE, DELETE)
-  EntityType VARCHAR(50),                      -- ประเภท Entity
-  EntityId BIGINT,                             -- ID ของ Entity
+  Module VARCHAR(50),
+  Action VARCHAR(100),
+  EntityType VARCHAR(50),
+  EntityId BIGINT,
   
   -- Additional Information
-  OldValues JSONB,                             -- ค่าเดิม (JSON)
-  NewValues JSONB,                             -- ค่าใหม่ (JSON)
-  IpAddress INET,                              -- IP Address
-  UserAgent TEXT,                              -- Browser/Device
-  SessionId VARCHAR(100),                      -- Session ID
+  OldValues JSONB,
+  NewValues JSONB,
+  IpAddress INET,
+  UserAgent TEXT,
+  SessionId VARCHAR(100),
   
-  -- Timestamp
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create Indexes
-CREATE INDEX idx_activity_logs_user ON ActivityLogs(UserId);
-CREATE INDEX idx_activity_logs_entity ON ActivityLogs(EntityType, EntityId);
-CREATE INDEX idx_activity_logs_date ON ActivityLogs(CreatedAt DESC);
+COMMENT ON TABLE ActivityLogs IS 'บันทึกกิจกรรมสำคัญ (Critical actions only)';
 
-COMMENT ON TABLE ActivityLogs IS 'เก็บเฉพาะ critical business actions - อื่นๆ ใช้ Serilog';
-
--- 12.2 System Configurations (Hybrid - UI Configurable Only)
--- ตาราง: การตั้งค่าระบบที่ Admin เปลี่ยนผ่าน UI
+-- 12.2 SystemConfigurations
+-- ตาราง: การตั้งค่าระบบ (UI configurable only)
 CREATE TABLE SystemConfigurations (
   Id BIGSERIAL PRIMARY KEY,
-  ConfigKey VARCHAR(100) UNIQUE NOT NULL,      -- คีย์การตั้งค่า
-  ConfigValue TEXT,                            -- ค่าการตั้งค่า
-  ConfigType VARCHAR(20),                      -- ประเภท: STRING, NUMBER, BOOLEAN, JSON
-  Description TEXT,                            -- คำอธิบาย
-  IsEncrypted BOOLEAN DEFAULT FALSE,           -- เข้ารหัสหรือไม่
+  ConfigKey VARCHAR(100) UNIQUE NOT NULL,
+  ConfigValue TEXT,
+  ConfigType VARCHAR(20),
+  Description TEXT,
+  IsEncrypted BOOLEAN DEFAULT FALSE,
   
   -- Scope
-  CompanyId BIGINT REFERENCES Companies(Id),   -- การตั้งค่าเฉพาะบริษัท (NULL = ทั้งระบบ)
+  CompanyId BIGINT REFERENCES Companies(Id),
   
   -- Audit
   IsActive BOOLEAN DEFAULT TRUE,
@@ -1413,127 +1286,308 @@ CREATE TABLE SystemConfigurations (
   UpdatedBy BIGINT REFERENCES Users(Id)
 );
 
--- Create Index
-CREATE INDEX idx_system_config_key ON SystemConfigurations(ConfigKey) WHERE IsActive = TRUE;
+COMMENT ON TABLE SystemConfigurations IS 'การตั้งค่าระบบที่แก้ไขผ่าน UI';
 
-COMMENT ON TABLE SystemConfigurations IS 'เก็บเฉพาะ config ที่ Admin เปลี่ยนผ่าน UI - อื่นๆ ใช้ appsettings.json';
-
--- 12.3 Error Logs (Hybrid - Business Critical Errors Only)
--- ตาราง: บันทึก Business Critical Errors
+-- 12.3 ErrorLogs
+-- ตาราง: Business Critical Errors Only
 CREATE TABLE ErrorLogs (
   Id BIGSERIAL PRIMARY KEY,
-  ErrorCode VARCHAR(50),                       -- รหัส Error
-  ErrorMessage TEXT NOT NULL,                  -- ข้อความ Error
-  ErrorDetails TEXT,                           -- รายละเอียด Error
+  ErrorCode VARCHAR(50),
+  ErrorMessage TEXT NOT NULL,
+  ErrorDetails TEXT,
   
   -- Context
-  UserId BIGINT,                               -- User ที่เกิด error
-  Module VARCHAR(50),                          -- โมดูลที่เกิด error
-  Action VARCHAR(100),                         -- การกระทำที่ทำให้เกิด error
+  UserId BIGINT,
+  Module VARCHAR(50),
+  Action VARCHAR(100),
   
   -- Status
-  IsResolved BOOLEAN DEFAULT FALSE,            -- แก้ไขแล้วหรือยัง
+  IsResolved BOOLEAN DEFAULT FALSE,
   ResolvedBy BIGINT REFERENCES Users(Id),
   ResolvedAt TIMESTAMP,
-  ResolutionNotes TEXT,                        -- บันทึกการแก้ไข
+  ResolutionNotes TEXT,
   
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create Indexes
-CREATE INDEX idx_error_logs_date ON ErrorLogs(CreatedAt DESC);
-CREATE INDEX idx_error_logs_unresolved ON ErrorLogs(CreatedAt DESC) WHERE IsResolved = FALSE;
-
-COMMENT ON TABLE ErrorLogs IS 'เก็บเฉพาะ business critical errors - อื่นๆ ใช้ Application Insights/Serilog';
-
--- Note: ReportTemplates and ReportExecutions tables removed - using FastReport/Crystal Reports instead
+COMMENT ON TABLE ErrorLogs IS 'บันทึก Business Critical Errors';
 
 -- =============================================
 -- SECTION 13: INFRASTRUCTURE TABLES
--- ตารางสำหรับ Infrastructure (Wolverine, SignalR)
 -- =============================================
 
--- 13.1 Wolverine Outbox
--- ตาราง: Transactional Outbox Pattern สำหรับ Wolverine
+-- 13.1 wolverine_outgoing_envelopes
+-- ตาราง: Wolverine Transactional Outbox
 CREATE TABLE wolverine_outgoing_envelopes (
   id UUID PRIMARY KEY,
-  destination VARCHAR(500) NOT NULL,           -- ปลายทาง
-  deliver_by TIMESTAMP,                        -- ส่งภายใน
-  body JSONB NOT NULL,                        -- เนื้อหา message
-  message_type VARCHAR(500) NOT NULL,          -- ประเภท message
-  attempts INT DEFAULT 0,                      -- จำนวนครั้งที่พยายาม
-  status VARCHAR(50) DEFAULT 'Pending',        -- สถานะ
-  owner_id INT,                                -- owner ID
-  execution_time TIMESTAMP,                    -- เวลาที่ execute
+  destination VARCHAR(500) NOT NULL,
+  deliver_by TIMESTAMP,
+  body JSONB NOT NULL,
+  message_type VARCHAR(500) NOT NULL,
+  attempts INT DEFAULT 0,
+  status VARCHAR(50) DEFAULT 'Pending',
+  owner_id INT,
+  execution_time TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
--- Create Indexes
-CREATE INDEX idx_wolverine_outgoing_status ON wolverine_outgoing_envelopes(status, deliver_by);
 
 COMMENT ON TABLE wolverine_outgoing_envelopes IS 'Wolverine outbox for reliable messaging';
 
--- 13.2 Wolverine Scheduled Messages
--- ตาราง: Scheduled Messages สำหรับ Wolverine
+-- 13.2 wolverine_scheduled_envelopes
+-- ตาราง: Wolverine Scheduled Messages
 CREATE TABLE wolverine_scheduled_envelopes (
   id UUID PRIMARY KEY,
-  scheduled_time TIMESTAMP NOT NULL,           -- เวลาที่กำหนด
-  body JSONB NOT NULL,                        -- เนื้อหา message
-  message_type VARCHAR(500) NOT NULL,          -- ประเภท message
-  destination VARCHAR(500),                    -- ปลายทาง
-  attempts INT DEFAULT 0,                      -- จำนวนครั้งที่พยายาม
+  scheduled_time TIMESTAMP NOT NULL,
+  body JSONB NOT NULL,
+  message_type VARCHAR(500) NOT NULL,
+  destination VARCHAR(500),
+  attempts INT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create Index
-CREATE INDEX idx_wolverine_scheduled_time ON wolverine_scheduled_envelopes(scheduled_time) 
-  WHERE scheduled_time > NOW();
+COMMENT ON TABLE wolverine_scheduled_envelopes IS 'Wolverine scheduled messages';
 
-COMMENT ON TABLE wolverine_scheduled_envelopes IS 'Wolverine scheduled messages (reminders, auto-decline, etc.)';
-
--- 13.3 SignalR Connections
--- ตาราง: Track SignalR connections สำหรับ real-time notifications
+-- 13.3 SignalRConnections
+-- ตาราง: SignalR Connection Tracking
 CREATE TABLE SignalRConnections (
-  ConnectionId UUID PRIMARY KEY DEFAULT gen_random_uuid(),       -- ดีกว่าเพราะ: Type-safe, Smaller storage, Better index
-  UserType VARCHAR(20) NOT NULL,               -- ประเภทผู้ใช้
-  UserId BIGINT,                               -- User ID (พนักงาน)
-  ContactId BIGINT,                            -- Contact ID (Supplier)
-  ConnectedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- วันเวลาที่เชื่อมต่อ
-  LastPingAt TIMESTAMP,                        -- Ping ล่าสุด
-  UserAgent TEXT,                              -- Browser/Device
-  IpAddress VARCHAR(45),                       -- IP Address
-  IsActive BOOLEAN DEFAULT TRUE,               -- สถานะการเชื่อมต่อ
+  ConnectionId VARCHAR(100) PRIMARY KEY,
+  UserType VARCHAR(20) NOT NULL,
+  UserId BIGINT,
+  ContactId BIGINT,
+  ConnectedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  LastPingAt TIMESTAMP,
+  UserAgent TEXT,
+  IpAddress VARCHAR(45),
+  IsActive BOOLEAN DEFAULT TRUE,
   
   CONSTRAINT chk_signalr_user_type CHECK (UserType IN ('Employee', 'SupplierContact'))
 );
 
--- Create Index
+COMMENT ON TABLE SignalRConnections IS 'Track SignalR connections for real-time notifications';
+
+-- =============================================
+-- INDEXES FOR PERFORMANCE
+-- =============================================
+
+-- Currencies
+CREATE INDEX idx_currencies_code ON Currencies(CurrencyCode) WHERE IsActive = TRUE;
+
+-- Countries
+CREATE INDEX idx_countries_code ON Countries(CountryCode) WHERE IsActive = TRUE;
+
+-- Categories
+CREATE INDEX idx_categories_active ON Categories(Id) WHERE IsActive = TRUE;
+
+-- Subcategories
+CREATE INDEX idx_subcategories_category ON Subcategories(CategoryId) WHERE IsActive = TRUE;
+
+-- Companies
+CREATE INDEX idx_companies_short_name ON Companies(ShortNameEn) WHERE IsActive = TRUE;
+CREATE INDEX idx_companies_tax_id ON Companies(TaxId) WHERE TaxId IS NOT NULL;
+
+-- Departments
+CREATE INDEX idx_departments_company ON Departments(CompanyId) WHERE IsActive = TRUE;
+
+-- Users
+CREATE INDEX idx_users_email ON Users(Email) WHERE IsDeleted = FALSE;
+CREATE INDEX idx_users_email_active ON Users(Email) WHERE IsDeleted = FALSE AND IsActive = TRUE;
+CREATE INDEX idx_users_employee_code ON Users(EmployeeCode) WHERE EmployeeCode IS NOT NULL;
+
+-- UserCompanyRoles
+CREATE INDEX idx_user_company_roles_user ON UserCompanyRoles(UserId) WHERE IsActive = TRUE;
+CREATE INDEX idx_user_company_roles_company ON UserCompanyRoles(CompanyId) WHERE IsActive = TRUE;
+
+-- Suppliers
+CREATE INDEX idx_suppliers_status ON Suppliers(Status) WHERE IsActive = TRUE;
+CREATE INDEX idx_suppliers_tax_id ON Suppliers(TaxId) WHERE TaxId IS NOT NULL;
+CREATE INDEX idx_suppliers_job_type ON Suppliers(JobTypeId) WHERE IsActive = TRUE;
+CREATE INDEX idx_suppliers_company ON Suppliers(InvitedByCompanyId) WHERE InvitedByCompanyId IS NOT NULL;
+
+-- SupplierContacts
+CREATE INDEX idx_supplier_contacts_supplier ON SupplierContacts(SupplierId) WHERE IsActive = TRUE;
+CREATE INDEX idx_supplier_contacts_email ON SupplierContacts(Email) WHERE IsActive = TRUE;
+CREATE INDEX idx_supplier_contacts_email_active ON SupplierContacts(Email) WHERE IsActive = TRUE;
+
+-- SupplierCategories
+CREATE INDEX idx_supplier_categories_supplier ON SupplierCategories(SupplierId) WHERE IsActive = TRUE;
+CREATE INDEX idx_supplier_categories_category ON SupplierCategories(CategoryId) WHERE IsActive = TRUE;
+
+-- SupplierDocuments
+CREATE INDEX idx_supplier_documents_supplier ON SupplierDocuments(SupplierId) WHERE IsActive = TRUE;
+
+-- Rfqs
+CREATE INDEX idx_rfqs_number ON Rfqs(RfqNumber);
+CREATE INDEX idx_rfqs_status ON Rfqs(Status) WHERE Status != 'COMPLETED';
+CREATE INDEX idx_rfqs_status_rebid ON Rfqs(Status) WHERE Status = 'RE_BID';
+CREATE INDEX idx_rfqs_company ON Rfqs(CompanyId);
+CREATE INDEX idx_rfqs_requester ON Rfqs(RequesterId);
+CREATE INDEX idx_rfqs_current_actor ON Rfqs(CurrentActorId) WHERE Status = 'PENDING';
+CREATE INDEX idx_rfqs_deadline ON Rfqs(QuotationDeadline) WHERE Status NOT IN ('COMPLETED','REJECTED');
+CREATE INDEX idx_rfqs_submission_deadline ON Rfqs(SubmissionDeadline) WHERE Status IN ('PENDING', 'RE_BID');
+CREATE INDEX idx_rfqs_reminder ON Rfqs(LastActionAt, Status) 
+  WHERE Status IN ('PENDING', 'DECLINED') AND LastReminderSentAt IS NULL;
+CREATE INDEX idx_rfqs_search ON Rfqs USING gin(to_tsvector('english', ProjectName || ' ' || COALESCE(Remarks, '')));
+
+-- RfqItems
+CREATE INDEX idx_rfq_items_rfq ON RfqItems(RfqId);
+
+-- RfqDocuments
+CREATE INDEX idx_rfq_documents_rfq ON RfqDocuments(RfqId);
+
+-- RfqRequiredFields
+CREATE INDEX idx_rfq_required_fields_rfq ON RfqRequiredFields(RfqId);
+
+-- RfqStatusHistory
+CREATE INDEX idx_rfq_status_history_rfq ON RfqStatusHistory(RfqId);
+CREATE INDEX idx_rfq_status_history_actor ON RfqStatusHistory(ActorId);
+
+-- RfqActorTimeline
+CREATE INDEX idx_rfq_actor_timeline ON RfqActorTimeline(RfqId, ReceivedAt DESC);
+
+-- RfqInvitations
+CREATE INDEX idx_rfq_invitations_rfq ON RfqInvitations(RfqId);
+CREATE INDEX idx_rfq_invitations_supplier ON RfqInvitations(SupplierId);
+CREATE INDEX idx_rfq_invitations_responded_contact ON RfqInvitations(RespondedByContactId) 
+  WHERE RespondedByContactId IS NOT NULL;
+CREATE INDEX idx_rfq_invitations_pending ON RfqInvitations(RfqId) 
+  WHERE ResponseStatus = 'NO_RESPONSE';
+CREATE INDEX idx_rfq_invitations_decision_participating ON RfqInvitations(SupplierId, Decision)
+  WHERE Decision = 'PARTICIPATING';
+
+-- RfqInvitationHistory
+CREATE INDEX idx_invitation_history_invitation ON RfqInvitationHistory(InvitationId);
+
+-- Quotations
+CREATE INDEX idx_quotations_rfq ON Quotations(RfqId);
+CREATE INDEX idx_quotations_supplier ON Quotations(SupplierId);
+CREATE INDEX idx_quotations_status ON Quotations(Status);
+CREATE INDEX idx_quotations_comparison ON Quotations(RfqId, TotalAmount) 
+  WHERE Status = 'SUBMITTED';
+
+-- QuotationItems
+CREATE INDEX idx_quotation_items_quotation ON QuotationItems(QuotationId);
+
+-- QuotationDocuments
+CREATE INDEX idx_quotation_documents_quotation ON QuotationDocuments(QuotationId);
+
+-- RfqQuestions
+CREATE INDEX idx_rfq_questions_rfq ON RfqQuestions(RfqId);
+CREATE INDEX idx_rfq_questions_supplier ON RfqQuestions(SupplierId);
+CREATE INDEX idx_rfq_questions_status ON RfqQuestions(Status) WHERE Status = 'AWAITING';
+
+-- Notifications
+CREATE INDEX idx_notifications_user ON Notifications(UserId) WHERE IsRead = FALSE;
+CREATE INDEX idx_notifications_contact ON Notifications(ContactId) WHERE IsRead = FALSE;
+CREATE INDEX idx_notifications_scheduled ON Notifications(ScheduledFor) 
+  WHERE ProcessedAt IS NULL AND ScheduledFor IS NOT NULL;
+CREATE INDEX idx_notifications_unread_count ON Notifications(UserId, IsRead) 
+  WHERE IsRead = FALSE;
+
+-- NotificationQueue
+CREATE INDEX idx_notification_queue_pending ON NotificationQueue(ScheduledFor, Priority)
+  WHERE Status = 'PENDING';
+
+-- ExchangeRates
+CREATE INDEX idx_exchange_rates_active ON ExchangeRates(FromCurrencyId, ToCurrencyId, EffectiveDate)
+  WHERE IsActive = TRUE;
+
+-- RefreshTokens
+CREATE INDEX idx_refresh_tokens_user ON RefreshTokens(UserId) 
+  WHERE UserType = 'Employee';
+CREATE INDEX idx_refresh_tokens_contact ON RefreshTokens(ContactId) 
+  WHERE UserType = 'SupplierContact';
+CREATE INDEX idx_refresh_tokens_active ON RefreshTokens(Token) 
+  WHERE RevokedAt IS NULL AND ExpiresAt > NOW();
+
+-- LoginHistory
+CREATE INDEX idx_login_history_user ON LoginHistory(UserId) 
+  WHERE UserType = 'Employee';
+CREATE INDEX idx_login_history_contact ON LoginHistory(ContactId) 
+  WHERE UserType = 'SupplierContact';
+CREATE INDEX idx_login_history_date ON LoginHistory(LoginAt DESC);
+CREATE INDEX idx_login_history_email ON LoginHistory(Email);
+
+-- ActivityLogs
+CREATE INDEX idx_activity_logs_user ON ActivityLogs(UserId);
+CREATE INDEX idx_activity_logs_entity ON ActivityLogs(EntityType, EntityId);
+CREATE INDEX idx_activity_logs_date ON ActivityLogs(CreatedAt DESC);
+
+-- SystemConfigurations
+CREATE INDEX idx_system_config_key ON SystemConfigurations(ConfigKey) WHERE IsActive = TRUE;
+
+-- ErrorLogs
+CREATE INDEX idx_error_logs_date ON ErrorLogs(CreatedAt DESC);
+CREATE INDEX idx_error_logs_unresolved ON ErrorLogs(CreatedAt DESC) WHERE IsResolved = FALSE;
+
+-- Wolverine tables
+CREATE INDEX idx_wolverine_outgoing_status ON wolverine_outgoing_envelopes(status, deliver_by);
+CREATE INDEX idx_wolverine_scheduled_time ON wolverine_scheduled_envelopes(scheduled_time) 
+  WHERE scheduled_time > NOW();
+
+-- SignalR
 CREATE INDEX idx_signalr_active ON SignalRConnections(IsActive, LastPingAt)
   WHERE IsActive = TRUE;
 
-COMMENT ON TABLE SignalRConnections IS 'Track SignalR connections สำหรับ real-time notifications';
-
 -- =============================================
--- INITIAL DATA INSERTION
--- ข้อมูลเริ่มต้นสำหรับระบบ
+-- VIEWS FOR REPORTING & PERFORMANCE
 -- =============================================
 
--- Insert Roles (Including new Managing Director role)
-INSERT INTO Roles (RoleCode, RoleName, RoleNameTh, RoleLevel, Description) VALUES
-  ('SUPER_ADMIN', 'Super Administrator', 'ผู้ดูแลระบบสูงสุด', 0, 'Full system access'),
-  ('ADMIN', 'Administrator', 'ผู้ดูแลระบบ', 1, 'System administration'),
-  ('REQUESTER', 'Requester', 'ผู้ขอเสนอราคา', 5, 'Create and submit RFQs'),
-  ('APPROVER', 'Approver', 'ผู้อนุมัติ', 3, 'Approve RFQs'),
-  ('PURCHASING', 'Purchasing', 'จัดซื้อ', 4, 'Manage RFQs and suppliers'),
-  ('PURCHASING_APPROVER', 'Purchasing Approver', 'ผู้อนุมัติจัดซื้อ', 2, 'Approve supplier selection'),
-  ('SUPPLIER', 'Supplier', 'ผู้ขาย/ผู้รับเหมา', 10, 'Submit quotations'),
-  ('MANAGING_DIRECTOR', 'Managing Director, Manager', 'กรรมการผู้จัดการ, ผู้จัดการ', 0, 'Executive dashboard and reports access')
-ON CONFLICT (RoleCode) DO UPDATE
-SET 
-  RoleName = EXCLUDED.RoleName,
-  RoleNameTh = EXCLUDED.RoleNameTh,
-  RoleLevel = EXCLUDED.RoleLevel,
-  Description = EXCLUDED.Description;
+-- View: RFQ Performance Statistics
+CREATE VIEW vw_rfq_performance AS
+SELECT 
+    r.Id,
+    r.RfqNumber,
+    r.ProjectName,
+    r.Status,
+    r.CurrentActorId,
+    u.FirstNameEn || ' ' || u.LastNameEn AS CurrentActor,
+    r.CurrentActorReceivedAt,
+    EXTRACT(DAY FROM NOW() - r.CurrentActorReceivedAt) AS DaysWithActor,
+    s.ResponseTimeDays,
+    CASE 
+        WHEN EXTRACT(DAY FROM NOW() - r.CurrentActorReceivedAt) > s.ResponseTimeDays 
+        THEN 'DELAY'
+        ELSE 'ONTIME'
+    END AS PerformanceStatus,
+    r.IsUrgent,
+    r.IsOverdue
+FROM Rfqs r
+LEFT JOIN Users u ON r.CurrentActorId = u.Id
+LEFT JOIN Subcategories s ON r.SubcategoryId = s.Id
+WHERE r.Status NOT IN ('COMPLETED', 'REJECTED');
+
+-- View: Supplier Statistics per RFQ
+CREATE VIEW vw_rfq_supplier_stats AS
+SELECT 
+    r.Id AS RfqId,
+    COUNT(ri.Id) AS TotalInvited,
+    COUNT(CASE WHEN ri.Decision = 'PARTICIPATING' THEN 1 END) AS TotalParticipating,
+    COUNT(CASE WHEN ri.Decision = 'NOT_PARTICIPATING' THEN 1 END) AS TotalNotParticipating,
+    COUNT(CASE WHEN ri.Decision = 'PARTICIPATING' 
+               AND q.Id IS NULL THEN 1 END) AS TotalNoQuote,
+    COUNT(CASE WHEN ri.Decision = 'AUTO_DECLINED' THEN 1 END) AS TotalAutoDeclined
+FROM Rfqs r
+LEFT JOIN RfqInvitations ri ON r.Id = ri.RfqId
+LEFT JOIN Quotations q ON ri.RfqId = q.RfqId 
+    AND ri.SupplierId = q.SupplierId
+    AND q.Status = 'SUBMITTED'
+GROUP BY r.Id;
+
+-- =============================================
+-- INITIAL DATA
+-- =============================================
+
+-- Insert Roles
+INSERT INTO Roles (RoleCode, RoleName, RoleNameTh, Description) VALUES
+  ('SUPER_ADMIN', 'Super Administrator', 'ผู้ดูแลระบบสูงสุด', 'Full system access'),
+  ('ADMIN', 'Administrator', 'ผู้ดูแลระบบ', 'System administration'),
+  ('REQUESTER', 'Requester', 'ผู้ขอเสนอราคา', 'Create and submit RFQs'),
+  ('APPROVER', 'Approver', 'ผู้อนุมัติ', 'Approve RFQs'),
+  ('PURCHASING', 'Purchasing', 'จัดซื้อ', 'Manage RFQs and suppliers'),
+  ('PURCHASING_APPROVER', 'Purchasing Approver', 'ผู้อนุมัติจัดซื้อ', 'Approve supplier selection'),
+  ('SUPPLIER', 'Supplier', 'ผู้ขาย/ผู้รับเหมา', 'Submit quotations'),
+  ('MANAGING_DIRECTOR', 'Managing Director, Manager', 'กรรมการผู้จัดการ, ผู้จัดการ', 'Executive dashboard and reports')
+ON CONFLICT (RoleCode) DO NOTHING;
 
 -- Insert Business Types
 INSERT INTO BusinessTypes (Id, Code, NameTh, NameEn, SortOrder) VALUES
@@ -1566,11 +1620,21 @@ INSERT INTO Incoterms (IncotermCode, IncotermName, Description) VALUES
   ('DDP', 'Delivered Duty Paid', 'Seller delivers goods with all duties paid')
 ON CONFLICT (IncotermCode) DO NOTHING;
 
+-- Insert Notification Rules
+INSERT INTO NotificationRules (RoleType, EventType, DaysAfterNoAction, NotifyRecipients, Channels) VALUES
+  ('REQUESTER', 'NO_ACTION_2_DAYS', 2, '{SELF, APPROVER_SUPERVISOR}', '{IN_APP, EMAIL}'),
+  ('APPROVER', 'NO_ACTION_2_DAYS', 2, '{SELF, REQUESTER}', '{IN_APP, EMAIL}'),
+  ('PURCHASING', 'NO_ACTION_2_DAYS', 2, '{SELF, REQUESTER, PURCHASING_SUPERVISOR}', '{IN_APP, EMAIL}'),
+  ('PURCHASING_APPROVER', 'NO_ACTION_2_DAYS', 2, '{SELF, REQUESTER, PURCHASING}', '{IN_APP, EMAIL}'),
+  ('SUPPLIER', 'NO_ACTION_2_DAYS', 2, '{SUPPLIER_CONTACTS}', '{IN_APP, EMAIL}'),
+  ('SUPPLIER', 'DEADLINE_24H', NULL, '{SUPPLIER_CONTACTS}', '{IN_APP, EMAIL, SMS}')
+ON CONFLICT DO NOTHING;
+
 -- =============================================
--- DATABASE OPTIMIZATION & MAINTENANCE
+-- TRIGGERS
 -- =============================================
 
--- Create trigger function for UpdatedAt columns
+-- Auto-update UpdatedAt timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $
 BEGIN
@@ -1585,11 +1649,14 @@ DECLARE
     t record;
 BEGIN
     FOR t IN 
-        SELECT table_name 
+        SELECT DISTINCT table_name 
         FROM information_schema.columns 
         WHERE column_name = 'updatedat' 
         AND table_schema = 'public'
+        AND table_name NOT LIKE 'vw_%'
     LOOP
+        EXECUTE format('DROP TRIGGER IF EXISTS update_%I_updated_at ON %I',
+                       t.table_name, t.table_name);
         EXECUTE format('CREATE TRIGGER update_%I_updated_at 
                        BEFORE UPDATE ON %I 
                        FOR EACH ROW 
@@ -1600,13 +1667,14 @@ END $;
 
 -- =============================================
 -- END OF DATABASE SCHEMA
--- Version: 4.0 (Optimized)
+-- Version: 5.0 (Production Ready)
 -- Last Updated: January 2025
--- Total Tables: 62 (59 core + 3 infrastructure)
--- Changes from v3.0:
--- - Removed: WorkflowRules, ReportTemplates, ReportExecutions
--- - Added: Wolverine tables (2), SignalR table (1)
--- - Enhanced: Rfqs table with reminder tracking
--- - Optimized: Indexes for performance
--- - Hybrid approach: Critical data in DB, others in logging
+-- Total Tables: 57 (Core) + 3 (Infrastructure) = 60
+-- 
+-- Changes from v4.0:
+-- - Removed unnecessary fields and tables
+-- - Simplified status constraints
+-- - Enhanced notification system for SMS & SignalR
+-- - Optimized indexes for performance
+-- - Added proper comments for all tables
 -- =============================================
