@@ -1,9 +1,10 @@
 -- =============================================
--- E-RFQ System Complete Database Schema v3.0
+-- E-RFQ System Final Database Schema v4.0 (Optimized)
 -- Database: erfq_system
 -- PostgreSQL Version: 14+
 -- Character Set: UTF8
 -- Last Updated: January 2025
+-- Total Tables: 62 (59 core + 3 infrastructure)
 -- =============================================
 
 -- =============================================
@@ -582,11 +583,11 @@ CREATE TABLE SupplierDocuments (
 CREATE INDEX idx_supplier_documents_supplier ON SupplierDocuments(SupplierId) WHERE IsActive = TRUE;
 
 -- =============================================
--- SECTION 5: RFQ MANAGEMENT
+-- SECTION 5: RFQ MANAGEMENT (ENHANCED)
 -- ตารางจัดการใบขอเสนอราคา
 -- =============================================
 
--- 5.1 RFQs (Request for Quotations)
+-- 5.1 RFQs (Request for Quotations) - ENHANCED
 -- ตาราง: ใบขอเสนอราคา
 CREATE TABLE Rfqs (
   Id BIGSERIAL PRIMARY KEY,
@@ -631,6 +632,16 @@ CREATE TABLE Rfqs (
   LastReBidAt TIMESTAMP,                                  -- วันเวลาที่ Re-Bid ล่าสุด
   ReBidReason TEXT,                                       -- เหตุผลที่ Re-Bid
   
+  -- Reminder Tracking (New)
+  LastActionAt TIMESTAMP,                                 -- วันเวลาที่มี action ล่าสุด
+  LastReminderSentAt TIMESTAMP,                          -- วันเวลาที่ส่ง reminder ล่าสุด
+  ProcessingDays INT GENERATED ALWAYS AS                 -- จำนวนวันที่ใช้ (auto-calculated)
+    (CASE 
+        WHEN Status = 'COMPLETED' THEN 
+            EXTRACT(DAY FROM UpdatedAt - CreatedAt)::INT
+        ELSE NULL 
+    END) STORED,
+  
   -- Flags
   IsUrgent BOOLEAN DEFAULT FALSE,                         -- เร่งด่วน
   IsOntime BOOLEAN DEFAULT TRUE,                          -- ทันเวลา
@@ -651,10 +662,14 @@ CREATE TABLE Rfqs (
   
   CONSTRAINT chk_rfq_status CHECK (Status IN 
     ('SAVE_DRAFT','PENDING','DECLINED','REJECTED','COMPLETED','RE_BID')),
-  CONSTRAINT chk_rfq_job_type CHECK (JobTypeId IN (1, 2))  -- Only Buy or Sell for RFQ
+  CONSTRAINT chk_rfq_job_type CHECK (JobTypeId IN (1, 2)),  -- Only Buy or Sell for RFQ
+  CONSTRAINT chk_rfq_dates CHECK (
+    QuotationDeadline > CreatedDate 
+    AND (SubmissionDeadline IS NULL OR SubmissionDeadline >= QuotationDeadline)
+  )
 );
 
--- Create Indexes
+-- Create Indexes (Enhanced)
 CREATE INDEX idx_rfqs_number ON Rfqs(RfqNumber);
 CREATE INDEX idx_rfqs_status ON Rfqs(Status) WHERE Status != 'COMPLETED';
 CREATE INDEX idx_rfqs_status_rebid ON Rfqs(Status) WHERE Status = 'RE_BID';
@@ -663,6 +678,9 @@ CREATE INDEX idx_rfqs_requester ON Rfqs(RequesterId);
 CREATE INDEX idx_rfqs_current_actor ON Rfqs(CurrentActorId) WHERE Status = 'PENDING';
 CREATE INDEX idx_rfqs_deadline ON Rfqs(QuotationDeadline) WHERE Status NOT IN ('COMPLETED','REJECTED');
 CREATE INDEX idx_rfqs_submission_deadline ON Rfqs(SubmissionDeadline) WHERE Status IN ('PENDING', 'RE_BID');
+CREATE INDEX idx_rfqs_reminder ON Rfqs(LastActionAt, Status) 
+  WHERE Status IN ('PENDING', 'DECLINED') AND LastReminderSentAt IS NULL;
+CREATE INDEX idx_rfqs_search ON Rfqs USING gin(to_tsvector('english', ProjectName || ' ' || COALESCE(Remarks, '')));
 
 -- Comments
 COMMENT ON COLUMN Rfqs.QuotationDeadline IS 'วันที่ต้องการใบเสนอราคา (Requester กำหนด)';
@@ -670,6 +688,9 @@ COMMENT ON COLUMN Rfqs.SubmissionDeadline IS 'วันที่สิ้นส�
 COMMENT ON COLUMN Rfqs.ReBidCount IS 'จำนวนครั้งที่ Re-Bid';
 COMMENT ON COLUMN Rfqs.LastReBidAt IS 'วันเวลาที่ Re-Bid ล่าสุด';
 COMMENT ON COLUMN Rfqs.ReBidReason IS 'เหตุผลที่ Re-Bid';
+COMMENT ON COLUMN Rfqs.LastActionAt IS 'วันเวลาที่มี action ล่าสุด สำหรับ reminder logic';
+COMMENT ON COLUMN Rfqs.LastReminderSentAt IS 'วันเวลาที่ส่ง reminder ล่าสุด';
+COMMENT ON COLUMN Rfqs.ProcessingDays IS 'จำนวนวันที่ใช้ในการดำเนินการ (auto-calculated)';
 
 -- 5.2 RFQ Items
 -- ตาราง: รายการสินค้า/บริการใน RFQ
@@ -702,7 +723,8 @@ CREATE TABLE RfqItems (
   CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UpdatedAt TIMESTAMP,
   
-  UNIQUE(RfqId, ItemSequence)
+  UNIQUE(RfqId, ItemSequence),
+  CONSTRAINT chk_rfq_items_quantity CHECK (Quantity > 0)
 );
 CREATE INDEX idx_rfq_items_rfq ON RfqItems(RfqId);
 
@@ -815,25 +837,7 @@ CREATE TABLE RfqStatusHistory (
 CREATE INDEX idx_rfq_status_history_rfq ON RfqStatusHistory(RfqId);
 CREATE INDEX idx_rfq_status_history_actor ON RfqStatusHistory(ActorId);
 
--- 6.3 Workflow Rules
--- ตาราง: กฎการทำงานของ Workflow
-CREATE TABLE WorkflowRules (
-  Id BIGSERIAL PRIMARY KEY,
-  CompanyId BIGINT REFERENCES Companies(Id),
-  WorkflowType VARCHAR(50) NOT NULL,           -- ประเภท Workflow
-  
-  -- Conditions
-  ConditionJson JSONB,                         -- เงื่อนไขในรูปแบบ JSON
-  
-  -- Actions
-  ActionJson JSONB,                            -- การกระทำในรูปแบบ JSON
-  
-  -- Configuration
-  Priority INT DEFAULT 0,                      -- ลำดับความสำคัญ
-  IsActive BOOLEAN DEFAULT TRUE,
-  CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UpdatedAt TIMESTAMP
-);
+-- Note: WorkflowRules table removed - using code-based workflow engine instead
 
 -- =============================================
 -- SECTION 7: QUOTATION MANAGEMENT
@@ -970,13 +974,16 @@ CREATE TABLE Quotations (
   
   UNIQUE(RfqId, SupplierId),
   CONSTRAINT chk_quotation_status CHECK (Status IN 
-    ('DRAFT','SUBMITTED','REVISED','SELECTED','NOT_SELECTED'))
+    ('DRAFT','SUBMITTED','REVISED','SELECTED','NOT_SELECTED')),
+  CONSTRAINT chk_quotation_amount CHECK (TotalAmount >= 0)
 );
 
 -- Create Indexes
 CREATE INDEX idx_quotations_rfq ON Quotations(RfqId);
 CREATE INDEX idx_quotations_supplier ON Quotations(SupplierId);
 CREATE INDEX idx_quotations_status ON Quotations(Status);
+CREATE INDEX idx_quotations_comparison ON Quotations(RfqId, TotalAmount) 
+  WHERE Status = 'SUBMITTED';
 
 -- 7.4 Quotation Items
 -- ตาราง: รายการสินค้าในใบเสนอราคา
@@ -1107,6 +1114,8 @@ CREATE TABLE Notifications (
 CREATE INDEX idx_notifications_user ON Notifications(UserId) WHERE IsRead = FALSE;
 CREATE INDEX idx_notifications_scheduled ON Notifications(ScheduledFor) 
   WHERE ProcessedAt IS NULL AND ScheduledFor IS NOT NULL;
+CREATE INDEX idx_notifications_unread_count ON Notifications(UserId, IsRead) 
+  WHERE IsRead = FALSE;
 
 -- Comments
 COMMENT ON COLUMN Notifications.NotificationType IS 'ประเภทการแจ้งเตือน: SUCCESS, ERROR, WARNING, INFO, MESSAGE - Frontend ใช้แสดง icon';
@@ -1222,7 +1231,10 @@ CREATE TABLE ExchangeRates (
   UpdatedBy BIGINT REFERENCES Users(Id),
   
   UNIQUE(FromCurrencyId, ToCurrencyId, EffectiveDate),
-  CONSTRAINT chk_exchange_rate CHECK (Rate > 0)
+  CONSTRAINT chk_exchange_rate CHECK (Rate > 0),
+  CONSTRAINT chk_exchange_dates CHECK (
+    ExpiryDate IS NULL OR ExpiryDate > EffectiveDate
+  )
 );
 
 -- Create Index
@@ -1242,11 +1254,11 @@ CREATE TABLE ExchangeRateHistory (
 );
 
 -- =============================================
--- SECTION 11: AUTHENTICATION & SECURITY (New)
+-- SECTION 11: AUTHENTICATION & SECURITY
 -- ตารางจัดการ Authentication และ Security
 -- =============================================
 
--- 11.1 RefreshTokens (New)
+-- 11.1 RefreshTokens
 -- ตาราง: JWT Refresh Tokens
 CREATE TABLE RefreshTokens (
   Id BIGSERIAL PRIMARY KEY,
@@ -1294,7 +1306,7 @@ COMMENT ON COLUMN RefreshTokens.RevokedAt IS 'วันเวลาที่ถ�
 COMMENT ON COLUMN RefreshTokens.ReplacedByToken IS 'Token ใหม่ที่แทนที่ (Refresh Token Rotation)';
 COMMENT ON COLUMN RefreshTokens.ReasonRevoked IS 'เหตุผล: Logout, Expired, Replaced, Revoked';
 
--- 11.2 LoginHistory (New)
+-- 11.2 LoginHistory
 -- ตาราง: ประวัติการ Login/Logout
 CREATE TABLE LoginHistory (
   Id BIGSERIAL PRIMARY KEY,
@@ -1344,12 +1356,13 @@ COMMENT ON COLUMN LoginHistory.FailureReason IS 'สาเหตุที่ log
 COMMENT ON COLUMN LoginHistory.LogoutType IS 'MANUAL=ผู้ใช้ logout เอง, TIMEOUT=หมดเวลา, FORCED=ถูกบังคับ logout';
 
 -- =============================================
--- SECTION 12: SYSTEM & AUDIT
+-- SECTION 12: SYSTEM & AUDIT (HYBRID APPROACH)
 -- ตารางสำหรับ Audit Trail และ System Configuration
+-- Note: Using hybrid approach - critical data in DB, others in logging system
 -- =============================================
 
--- 12.1 Activity Logs
--- ตาราง: บันทึกกิจกรรมในระบบ
+-- 12.1 Activity Logs (Hybrid - Critical Actions Only)
+-- ตาราง: บันทึกกิจกรรมสำคัญในระบบ
 CREATE TABLE ActivityLogs (
   Id BIGSERIAL PRIMARY KEY,
   UserId BIGINT REFERENCES Users(Id),          -- ผู้ทำกิจกรรม
@@ -1377,8 +1390,10 @@ CREATE INDEX idx_activity_logs_user ON ActivityLogs(UserId);
 CREATE INDEX idx_activity_logs_entity ON ActivityLogs(EntityType, EntityId);
 CREATE INDEX idx_activity_logs_date ON ActivityLogs(CreatedAt DESC);
 
--- 12.2 System Configurations
--- ตาราง: การตั้งค่าระบบ
+COMMENT ON TABLE ActivityLogs IS 'เก็บเฉพาะ critical business actions - อื่นๆ ใช้ Serilog';
+
+-- 12.2 System Configurations (Hybrid - UI Configurable Only)
+-- ตาราง: การตั้งค่าระบบที่ Admin เปลี่ยนผ่าน UI
 CREATE TABLE SystemConfigurations (
   Id BIGSERIAL PRIMARY KEY,
   ConfigKey VARCHAR(100) UNIQUE NOT NULL,      -- คีย์การตั้งค่า
@@ -1401,28 +1416,20 @@ CREATE TABLE SystemConfigurations (
 -- Create Index
 CREATE INDEX idx_system_config_key ON SystemConfigurations(ConfigKey) WHERE IsActive = TRUE;
 
--- 12.3 Error Logs
--- ตาราง: บันทึก Error ในระบบ
+COMMENT ON TABLE SystemConfigurations IS 'เก็บเฉพาะ config ที่ Admin เปลี่ยนผ่าน UI - อื่นๆ ใช้ appsettings.json';
+
+-- 12.3 Error Logs (Hybrid - Business Critical Errors Only)
+-- ตาราง: บันทึก Business Critical Errors
 CREATE TABLE ErrorLogs (
   Id BIGSERIAL PRIMARY KEY,
   ErrorCode VARCHAR(50),                       -- รหัส Error
   ErrorMessage TEXT NOT NULL,                  -- ข้อความ Error
   ErrorDetails TEXT,                           -- รายละเอียด Error
-  StackTrace TEXT,                             -- Stack trace
   
   -- Context
   UserId BIGINT,                               -- User ที่เกิด error
   Module VARCHAR(50),                          -- โมดูลที่เกิด error
   Action VARCHAR(100),                         -- การกระทำที่ทำให้เกิด error
-  RequestUrl TEXT,                             -- URL ที่ request
-  RequestMethod VARCHAR(10),                   -- HTTP Method
-  RequestData TEXT,                            -- ข้อมูลที่ส่งมา
-  
-  -- Environment
-  ServerName VARCHAR(100),                     -- ชื่อ Server
-  Environment VARCHAR(20),                     -- Environment: DEV, UAT, PROD
-  IpAddress INET,                              -- IP Address
-  UserAgent TEXT,                              -- Browser/Device
   
   -- Status
   IsResolved BOOLEAN DEFAULT FALSE,            -- แก้ไขแล้วหรือยัง
@@ -1437,65 +1444,74 @@ CREATE TABLE ErrorLogs (
 CREATE INDEX idx_error_logs_date ON ErrorLogs(CreatedAt DESC);
 CREATE INDEX idx_error_logs_unresolved ON ErrorLogs(CreatedAt DESC) WHERE IsResolved = FALSE;
 
+COMMENT ON TABLE ErrorLogs IS 'เก็บเฉพาะ business critical errors - อื่นๆ ใช้ Application Insights/Serilog';
+
+-- Note: ReportTemplates and ReportExecutions tables removed - using FastReport/Crystal Reports instead
+
 -- =============================================
--- SECTION 13: REPORTING & ANALYTICS
--- ตารางสำหรับ Reports และ Analytics
+-- SECTION 13: INFRASTRUCTURE TABLES
+-- ตารางสำหรับ Infrastructure (Wolverine, SignalR)
 -- =============================================
 
--- 13.1 Report Templates
--- ตาราง: Template รายงาน
-CREATE TABLE ReportTemplates (
-  Id BIGSERIAL PRIMARY KEY,
-  ReportCode VARCHAR(50) UNIQUE NOT NULL,      -- รหัสรายงาน
-  ReportName VARCHAR(200) NOT NULL,            -- ชื่อรายงาน
-  ReportNameTh VARCHAR(200),                   -- ชื่อรายงานภาษาไทย
-  Category VARCHAR(50),                        -- หมวดหมู่รายงาน
-  
-  -- Configuration
-  QueryTemplate TEXT,                          -- SQL Query template
-  Parameters JSONB,                            -- พารามิเตอร์ที่ใช้
-  OutputFormat VARCHAR(20),                    -- รูปแบบ output: PDF, EXCEL, CSV
-  
-  -- Permissions
-  RequiredRoles TEXT[],                        -- บทบาทที่ดูได้
-  
-  -- Scheduling
-  IsScheduled BOOLEAN DEFAULT FALSE,           -- มีการตั้งเวลาหรือไม่
-  ScheduleCron VARCHAR(100),                   -- Cron expression
-  
-  IsActive BOOLEAN DEFAULT TRUE,
-  CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UpdatedAt TIMESTAMP
-);
-
--- 13.2 Report Executions
--- ตาราง: ประวัติการรันรายงาน
-CREATE TABLE ReportExecutions (
-  Id BIGSERIAL PRIMARY KEY,
-  ReportTemplateId BIGINT NOT NULL REFERENCES ReportTemplates(Id),
-  
-  -- Execution Details
-  ExecutedBy BIGINT NOT NULL REFERENCES Users(Id),
-  ExecutedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  Parameters JSONB,                            -- พารามิเตอร์ที่ใช้
-  
-  -- Results
-  Status VARCHAR(20) DEFAULT 'RUNNING',        -- RUNNING, COMPLETED, FAILED
-  RecordCount INT,                             -- จำนวน record
-  FilePath TEXT,                               -- path ไฟล์ผลลัพธ์
-  FileSize BIGINT,                             -- ขนาดไฟล์
-  ExecutionTime INT,                           -- เวลาที่ใช้ (milliseconds)
-  
-  -- Error Handling
-  ErrorMessage TEXT,
-  
-  CONSTRAINT chk_report_status CHECK (Status IN ('RUNNING','COMPLETED','FAILED'))
+-- 13.1 Wolverine Outbox
+-- ตาราง: Transactional Outbox Pattern สำหรับ Wolverine
+CREATE TABLE wolverine_outgoing_envelopes (
+  id UUID PRIMARY KEY,
+  destination VARCHAR(500) NOT NULL,           -- ปลายทาง
+  deliver_by TIMESTAMP,                        -- ส่งภายใน
+  body JSONB NOT NULL,                        -- เนื้อหา message
+  message_type VARCHAR(500) NOT NULL,          -- ประเภท message
+  attempts INT DEFAULT 0,                      -- จำนวนครั้งที่พยายาม
+  status VARCHAR(50) DEFAULT 'Pending',        -- สถานะ
+  owner_id INT,                                -- owner ID
+  execution_time TIMESTAMP,                    -- เวลาที่ execute
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create Indexes
-CREATE INDEX idx_report_executions_template ON ReportExecutions(ReportTemplateId);
-CREATE INDEX idx_report_executions_user ON ReportExecutions(ExecutedBy);
-CREATE INDEX idx_report_executions_date ON ReportExecutions(ExecutedAt DESC);
+CREATE INDEX idx_wolverine_outgoing_status ON wolverine_outgoing_envelopes(status, deliver_by);
+
+COMMENT ON TABLE wolverine_outgoing_envelopes IS 'Wolverine outbox for reliable messaging';
+
+-- 13.2 Wolverine Scheduled Messages
+-- ตาราง: Scheduled Messages สำหรับ Wolverine
+CREATE TABLE wolverine_scheduled_envelopes (
+  id UUID PRIMARY KEY,
+  scheduled_time TIMESTAMP NOT NULL,           -- เวลาที่กำหนด
+  body JSONB NOT NULL,                        -- เนื้อหา message
+  message_type VARCHAR(500) NOT NULL,          -- ประเภท message
+  destination VARCHAR(500),                    -- ปลายทาง
+  attempts INT DEFAULT 0,                      -- จำนวนครั้งที่พยายาม
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create Index
+CREATE INDEX idx_wolverine_scheduled_time ON wolverine_scheduled_envelopes(scheduled_time) 
+  WHERE scheduled_time > NOW();
+
+COMMENT ON TABLE wolverine_scheduled_envelopes IS 'Wolverine scheduled messages (reminders, auto-decline, etc.)';
+
+-- 13.3 SignalR Connections
+-- ตาราง: Track SignalR connections สำหรับ real-time notifications
+CREATE TABLE SignalRConnections (
+  ConnectionId UUID PRIMARY KEY DEFAULT gen_random_uuid(),       -- ดีกว่าเพราะ: Type-safe, Smaller storage, Better index
+  UserType VARCHAR(20) NOT NULL,               -- ประเภทผู้ใช้
+  UserId BIGINT,                               -- User ID (พนักงาน)
+  ContactId BIGINT,                            -- Contact ID (Supplier)
+  ConnectedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- วันเวลาที่เชื่อมต่อ
+  LastPingAt TIMESTAMP,                        -- Ping ล่าสุด
+  UserAgent TEXT,                              -- Browser/Device
+  IpAddress VARCHAR(45),                       -- IP Address
+  IsActive BOOLEAN DEFAULT TRUE,               -- สถานะการเชื่อมต่อ
+  
+  CONSTRAINT chk_signalr_user_type CHECK (UserType IN ('Employee', 'SupplierContact'))
+);
+
+-- Create Index
+CREATE INDEX idx_signalr_active ON SignalRConnections(IsActive, LastPingAt)
+  WHERE IsActive = TRUE;
+
+COMMENT ON TABLE SignalRConnections IS 'Track SignalR connections สำหรับ real-time notifications';
 
 -- =============================================
 -- INITIAL DATA INSERTION
@@ -1551,8 +1567,46 @@ INSERT INTO Incoterms (IncotermCode, IncotermName, Description) VALUES
 ON CONFLICT (IncotermCode) DO NOTHING;
 
 -- =============================================
+-- DATABASE OPTIMIZATION & MAINTENANCE
+-- =============================================
+
+-- Create trigger function for UpdatedAt columns
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $
+BEGIN
+    NEW.UpdatedAt = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$ LANGUAGE plpgsql;
+
+-- Apply trigger to all tables with UpdatedAt column
+DO $
+DECLARE
+    t record;
+BEGIN
+    FOR t IN 
+        SELECT table_name 
+        FROM information_schema.columns 
+        WHERE column_name = 'updatedat' 
+        AND table_schema = 'public'
+    LOOP
+        EXECUTE format('CREATE TRIGGER update_%I_updated_at 
+                       BEFORE UPDATE ON %I 
+                       FOR EACH ROW 
+                       EXECUTE FUNCTION update_updated_at_column()',
+                       t.table_name, t.table_name);
+    END LOOP;
+END $;
+
+-- =============================================
 -- END OF DATABASE SCHEMA
--- Version: 3.0
+-- Version: 4.0 (Optimized)
 -- Last Updated: January 2025
--- Total Tables: 62
+-- Total Tables: 62 (59 core + 3 infrastructure)
+-- Changes from v3.0:
+-- - Removed: WorkflowRules, ReportTemplates, ReportExecutions
+-- - Added: Wolverine tables (2), SignalR table (1)
+-- - Enhanced: Rfqs table with reminder tracking
+-- - Optimized: Indexes for performance
+-- - Hybrid approach: Critical data in DB, others in logging
 -- =============================================
