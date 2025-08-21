@@ -380,15 +380,17 @@ CREATE TABLE UserCompanyRoles (
   UpdatedBy BIGINT,
   
   UNIQUE(UserId, CompanyId),
-  CONSTRAINT chk_role_rules CHECK (
-  --ใช้ Hard-coded Role IDs (Simple but Less Flexible) + Application Layer Validation (Most Flexible)
-    -- Requester cannot be Approver or Purchasing
-    NOT (
-        (PrimaryRoleId = 3 AND SecondaryRoleId IN (4, 5))
-        OR 
-        (SecondaryRoleId = 3 AND PrimaryRoleId IN (4, 5))
-    )
-  ),
+  -- แก้ไข Constraint ให้ถูกต้องตาม Business Rules
+	CONSTRAINT chk_role_rules CHECK (
+		-- Role IDs: REQUESTER=3, APPROVER=4, PURCHASING=5
+		NOT (
+			-- ห้าม REQUESTER + APPROVER (ทุกลำดับ)
+			(PrimaryRoleId = 3 AND SecondaryRoleId = 4) OR
+			(PrimaryRoleId = 4 AND SecondaryRoleId = 3) OR
+			-- ห้าม REQUESTER เป็น Primary + PURCHASING เป็น Secondary
+			(PrimaryRoleId = 3 AND SecondaryRoleId = 5)
+			-- อนุญาต PURCHASING + REQUESTER (RULE-003)
+		)
   CONSTRAINT chk_date_validity CHECK (EndDate IS NULL OR EndDate > StartDate)
 );
 
