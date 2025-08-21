@@ -117,6 +117,17 @@ CREATE TABLE Roles (
 COMMENT ON TABLE Roles IS 'บทบาทผู้ใช้งานในระบบ';
 -- Note: ลบ RoleLevel ออกเพราะไม่ได้ใช้งาน
 
+-- สร้าง Master Table สำหรับ Response Time เก็บ "มาตรฐาน" ของแต่ละ Role
+CREATE TABLE RoleResponseTimes (
+    Id BIGSERIAL PRIMARY KEY,
+    RoleCode VARCHAR(30) UNIQUE NOT NULL,
+    ResponseTimeDays INT NOT NULL, -- -- 2 วัน (ค่ามาตรฐาน)
+    Description TEXT,
+    IsActive BOOLEAN DEFAULT TRUE,
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt TIMESTAMP
+);
+
 -- 1.6 Permissions
 -- ตาราง: สิทธิ์การใช้งาน
 CREATE TABLE Permissions (
@@ -173,7 +184,6 @@ CREATE TABLE Subcategories (
   SubcategoryNameEn VARCHAR(200),
   IsUseSerialNumber BOOLEAN DEFAULT FALSE,     -- บังคับใส่ Serial Number
   Duration INT DEFAULT 7,                      -- ระยะเวลาตอบกลับ (วัน)
-  ResponseTimeDays INT DEFAULT 2,              -- เวลาตอบสนอง (วัน)
   Description TEXT,
   SortOrder INT,
   IsActive BOOLEAN DEFAULT TRUE,
@@ -186,7 +196,6 @@ CREATE TABLE Subcategories (
 COMMENT ON TABLE Subcategories IS 'หมวดหมู่ย่อยของสินค้า/บริการ';
 COMMENT ON COLUMN Subcategories.IsUseSerialNumber IS 'บังคับกรอก Serial Number';
 COMMENT ON COLUMN Subcategories.Duration IS 'จำนวนวันสำหรับคำนวณ deadline';
-COMMENT ON COLUMN Subcategories.ResponseTimeDays IS 'จำนวนวันที่ต้อง action';
 
 -- 1.10 SubcategoryDocRequirements
 -- ตาราง: เอกสารที่ต้องแนบตาม Subcategory
@@ -611,18 +620,20 @@ CREATE TABLE Rfqs (
   -- Reminder Tracking
   LastActionAt TIMESTAMP,
   LastReminderSentAt TIMESTAMP,
-  ProcessingDays INT GENERATED ALWAYS AS 
-    (CASE 
-        WHEN Status = 'COMPLETED' THEN 
-            EXTRACT(DAY FROM UpdatedAt - CreatedAt)::INT
-        ELSE NULL 
-    END) STORED,
+  
   
   -- Flags
   IsUrgent BOOLEAN DEFAULT FALSE,              -- งานเร่ง
-  IsOntime BOOLEAN DEFAULT TRUE,               -- ทันเวลา
-  IsOverdue BOOLEAN GENERATED ALWAYS AS        -- เลย deadline
-    (RequiredQuotationDate < NOW()) STORED,
+  -- move other table
+  --IsOntime BOOLEAN DEFAULT TRUE,              
+  
+  
+  ProcessingDays INT,
+	
+	--move to Computed Property ใน EF Core
+  --IsOverdue BOOLEAN GENERATED ALWAYS AS        -- เลย deadline
+    --(RequiredQuotationDate < NOW()) STORED,
+  IsOverdue BOOLEAN DEFAULT FALSE,
   
   -- Decline/Reject Reasons
   DeclineReason TEXT,
@@ -751,7 +762,7 @@ CREATE TABLE RfqStatusHistory (
 
 COMMENT ON TABLE RfqStatusHistory IS 'ประวัติการเปลี่ยนสถานะ RFQ';
 
--- 6.2 RfqActorTimeline
+-- 6.2 RfqActorTimeline  จุดประสงค์: กำหนดว่าแต่ละ Role ควร ใช้เวลากี่วัน
 -- ตาราง: Timeline การทำงานของแต่ละ Actor
 CREATE TABLE RfqActorTimeline (
   Id BIGSERIAL PRIMARY KEY,
@@ -760,7 +771,6 @@ CREATE TABLE RfqActorTimeline (
   ActorRole VARCHAR(30) NOT NULL,
   ReceivedAt TIMESTAMP NOT NULL,
   ActionAt TIMESTAMP,
-  ResponseTimeDays INT NOT NULL,
   IsOntime BOOLEAN,
   
   CONSTRAINT uk_rfq_actor UNIQUE(RfqId, ActorId, ReceivedAt)
@@ -1033,21 +1043,28 @@ COMMENT ON COLUMN Notifications.MessageQueueId IS 'Wolverine message ID';
 
 -- 9.2 NotificationRules
 -- ตาราง: กฎการส่งการแจ้งเตือน
+-- ใช้โครงสร้างเดิมที่มีอยู่ (ไม่ต้องเปลี่ยน)
+-- NotifyRecipients เป็น TEXT[] สามารถเก็บค่าได้หลายแบบ:
+-- 'SELF' = ตัวเอง
+-- 'REQUESTER' = ผู้ขอ
+-- 'APPROVER_SUPERVISOR' = หัวหน้า Approver
+-- 'PURCHASING_SUPERVISOR' = หัวหน้า Purchasing
+-- 'SUPPLIER_CONTACTS' = ผู้ติดต่อ Supplier
 CREATE TABLE NotificationRules (
   Id BIGSERIAL PRIMARY KEY,
   RoleType VARCHAR(50) NOT NULL,               -- บทบาทที่เกี่ยวข้อง
-  EventType VARCHAR(100) NOT NULL,             -- เหตุการณ์ที่ trigger
+  EventType VARCHAR(100) NOT NULL,             -- เหตุการณ์ที่ trigger     -- NO_ACTION_2_DAYS, DELAY_ALERT
   
   -- Timing
   DaysAfterNoAction INT,                       -- จำนวนวันหลังไม่มีการ action
   HoursBeforeDeadline INT,                     -- จำนวนชั่วโมงก่อน deadline
   
   -- Recipients
-  NotifyRecipients TEXT[],
+  NotifyRecipients TEXT[],   					-- Array ของผู้รับ
   
   -- Configuration
   Priority VARCHAR(20) DEFAULT 'NORMAL',
-  Channels TEXT[],
+  Channels TEXT[],								-- Array ของช่องทาง
   
   -- Template
   TitleTemplate TEXT,
@@ -1528,51 +1545,33 @@ CREATE INDEX idx_wolverine_scheduled_time ON wolverine_scheduled_envelopes(sched
 CREATE INDEX idx_signalr_active ON SignalRConnections(IsActive, LastPingAt)
   WHERE IsActive = TRUE;
 
--- =============================================
--- VIEWS FOR REPORTING & PERFORMANCE
--- =============================================
 
--- View: RFQ Performance Statistics
-CREATE VIEW vw_rfq_performance AS
-SELECT 
-    r.Id,
-    r.RfqNumber,
-    r.ProjectName,
-    r.Status,
-    r.CurrentActorId,
-    u.FirstNameEn || ' ' || u.LastNameEn AS CurrentActor,
-    r.CurrentActorReceivedAt,
-    EXTRACT(DAY FROM NOW() - r.CurrentActorReceivedAt) AS DaysWithActor,
-    s.ResponseTimeDays,
-    CASE 
-        WHEN EXTRACT(DAY FROM NOW() - r.CurrentActorReceivedAt) > s.ResponseTimeDays 
-        THEN 'DELAY'
-        ELSE 'ONTIME'
-    END AS PerformanceStatus,
-    r.IsUrgent,
-    r.IsOverdue
-FROM Rfqs r
-LEFT JOIN Users u ON r.CurrentActorId = u.Id
-LEFT JOIN Subcategories s ON r.SubcategoryId = s.Id
-WHERE r.Status NOT IN ('COMPLETED', 'REJECTED');
+-- Index สำหรับ Notification queries
+CREATE INDEX idx_rfqs_pending_notifications ON Rfqs(CurrentActorReceivedAt, LastReminderSentAt) 
+WHERE Status IN ('PENDING', 'PROCESSING');
 
--- View: Supplier Statistics per RFQ
-CREATE VIEW vw_rfq_supplier_stats AS
-SELECT 
-    r.Id AS RfqId,
-    COUNT(ri.Id) AS TotalInvited,
-    COUNT(CASE WHEN ri.Decision = 'PARTICIPATING' THEN 1 END) AS TotalParticipating,
-    COUNT(CASE WHEN ri.Decision = 'NOT_PARTICIPATING' THEN 1 END) AS TotalNotParticipating,
-    COUNT(CASE WHEN ri.Decision = 'PARTICIPATING' 
-               AND q.Id IS NULL THEN 1 END) AS TotalNoQuote,
-    COUNT(CASE WHEN ri.Decision = 'AUTO_DECLINED' THEN 1 END) AS TotalAutoDeclined
-FROM Rfqs r
-LEFT JOIN RfqInvitations ri ON r.Id = ri.RfqId
-LEFT JOIN Quotations q ON ri.RfqId = q.RfqId 
-    AND ri.SupplierId = q.SupplierId
-    AND q.Status = 'SUBMITTED'
-GROUP BY r.Id;
+-- Index สำหรับ Ontime/Delay calculation
+CREATE INDEX idx_rfqs_current_actor ON Rfqs(CurrentActorId, CurrentActorReceivedAt) 
+WHERE Status NOT IN ('COMPLETED', 'REJECTED');
 
+-- Index สำหรับ RoleResponseTimes lookup
+CREATE INDEX idx_role_response_times_code ON RoleResponseTimes(RoleCode) 
+WHERE IsActive = TRUE;
+
+-- Create Trigger for IsOverdue
+CREATE OR REPLACE FUNCTION update_rfq_overdue()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.IsOverdue = (NEW.RequiredQuotationDate < CURRENT_TIMESTAMP);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_update_rfq_overdue
+    BEFORE INSERT OR UPDATE OF RequiredQuotationDate ON Rfqs
+    FOR EACH ROW
+    EXECUTE FUNCTION update_rfq_overdue();
+	
 -- =============================================
 -- INITIAL DATA
 -- =============================================
@@ -1633,6 +1632,14 @@ INSERT INTO Roles (RoleCode, RoleName, RoleNameTh, Description) VALUES
   ("SUPPLIER", "Supplier", "ผู้ขาย/ผู้รับเหมา", "Submit quotations"),
   ("MANAGING_DIRECTOR", "Managing Director, Manager", "กรรมการผู้จัดการ", "ผู้จัดการ", "Executive dashboard and reports")
 ON CONFLICT (RoleCode) DO NOTHING;
+
+-- Insert ค่าเริ่มต้น ResponseTime ของแต่ละ Role
+INSERT INTO RoleResponseTimes (RoleCode, ResponseTimeDays, Description) VALUES
+('REQUESTER', 1, 'ระยะเวลาสร้างและส่ง RFQ'),
+('APPROVER', 2, 'ระยะเวลาพิจารณาอนุมัติ'),
+('PURCHASING', 2, 'ระยะเวลาดำเนินการเชิญ Supplier'),
+('PURCHASING_APPROVER', 1, 'ระยะเวลาอนุมัติผลการเลือก'),
+('SUPPLIER', 3, 'ระยะเวลาตอบรับและเสนอราคา');
 
 -- ============================================
 -- 6. PERMISSIONS
@@ -1722,38 +1729,6 @@ INSERT INTO Categories (CategoryCode, CategoryNameTh, CategoryNameEn, Descriptio
 ('MKT', 'การตลาด', 'Marketing', 'สื่อโฆษณาและการตลาด', 5),
 ('VEH', 'ยานพาหนะ', 'Vehicles', 'รถยนต์และอะไหล่', 6);
 
--- ============================================
--- 9. SUBCATEGORIES พร้อม Duration และ ResponseTimeDays
--- ============================================
--- IT Category
-INSERT INTO Subcategories (CategoryId, SubcategoryCode, SubcategoryNameTh, SubcategoryNameEn, 
-                          IsUseSerialNumber, Duration, ResponseTimeDays, SortOrder) VALUES
-(1, 'IT-COM', 'คอมพิวเตอร์', 'Computer', TRUE, 7, 2, 1),
-(1, 'IT-NET', 'อุปกรณ์เครือข่าย', 'Network Equipment', TRUE, 10, 3, 2),
-(1, 'IT-SOFT', 'ซอฟต์แวร์', 'Software', FALSE, 14, 3, 3),
-(1, 'IT-PRINT', 'เครื่องพิมพ์', 'Printer', TRUE, 7, 2, 4),
-
--- Office Category
-(2, 'OFF-STA', 'เครื่องเขียน', 'Stationery', FALSE, 3, 1, 1),
-(2, 'OFF-FURN', 'เฟอร์นิเจอร์', 'Furniture', FALSE, 14, 3, 2),
-(2, 'OFF-PANT', 'งานสั่งพิมพ์', 'Printing Service', FALSE, 5, 2, 3),
-
--- Maintenance Category
-(3, 'MNT-AC', 'ซ่อมแอร์', 'AC Maintenance', FALSE, 3, 1, 1),
-(3, 'MNT-ELEC', 'ระบบไฟฟ้า', 'Electrical System', FALSE, 5, 2, 2),
-(3, 'MNT-CLEAN', 'ทำความสะอาด', 'Cleaning Service', FALSE, 3, 1, 3),
-
--- Construction Category
-(4, 'CON-BUILD', 'งานก่อสร้าง', 'Building Construction', FALSE, 30, 5, 1),
-(4, 'CON-RENO', 'งานปรับปรุง', 'Renovation', FALSE, 21, 3, 2),
-
--- Marketing Category
-(5, 'MKT-MEDIA', 'สื่อโฆษณา', 'Advertising Media', FALSE, 7, 2, 1),
-(5, 'MKT-EVENT', 'จัดอีเวนต์', 'Event Management', FALSE, 14, 3, 2),
-
--- Vehicle Category
-(6, 'VEH-CAR', 'รถยนต์', 'Cars', TRUE, 14, 3, 1),
-(6, 'VEH-PART', 'อะไหล่', 'Spare Parts', FALSE, 7, 2, 2);
 
 -- ============================================
 -- 10. SUBCATEGORYDOCREQUIREMENTS
@@ -1807,3 +1782,29 @@ ON CONFLICT DO NOTHING;
 -- - Optimized indexes for performance
 -- - Added proper comments for all tables
 -- =============================================
+
+
+-- ความแตกต่าง RfqActorTimeline vs RoleResponseTimes
+-- RoleResponseTimes (Master Data)
+-- -- เก็บ "มาตรฐาน" ของแต่ละ Role
+-- CREATE TABLE RoleResponseTimes (
+    -- RoleCode VARCHAR(30),       -- 'APPROVER'
+    -- ResponseTimeDays INT         -- 2 วัน (ค่ามาตรฐาน)
+-- );
+-- จุดประสงค์: กำหนดว่าแต่ละ Role ควร ใช้เวลากี่วัน
+-- RfqActorTimeline (Transaction Data)
+-- -- เก็บ "ประวัติจริง" ของแต่ละ RFQ
+-- CREATE TABLE RfqActorTimeline (
+    -- RfqId BIGINT,               -- RFQ #001
+    -- ActorId BIGINT,             -- User Id ที่ทำ
+    -- ActorRole VARCHAR(30),      -- Role ที่ทำ
+    -- ReceivedAt TIMESTAMP,       -- วันที่ได้รับ
+    -- ActionAt TIMESTAMP,         -- วันที่ทำจริง
+    -- IsOntime BOOLEAN            -- ทันไหม (เทียบกับมาตรฐาน)
+-- );
+-- จุดประสงค์: บันทึกว่าแต่ละคน ใช้เวลาจริง เท่าไหร่
+-- ตัวอย่างการใช้งาน:
+-- RoleResponseTimes: APPROVER ควรใช้ 2 วัน
+-- RfqActorTimeline: 
+--   - RFQ#001: นาย A (APPROVER) ใช้ 3 วัน = DELAY
+--   - RFQ#002: นาย B (APPROVER) ใช้ 1 วัน = ONTIME
