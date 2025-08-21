@@ -9,19 +9,18 @@
 -- =============================================
 -- DATABASE CONFIGURATION
 -- =============================================
-CREATE DATABASE erfq_system
-  WITH
-  OWNER = postgres
-  ENCODING = 'UTF8'
-  LC_COLLATE = 'en_US.UTF-8'
-  LC_CTYPE = 'en_US.UTF-8'
-  TABLESPACE = pg_default
-  CONNECTION LIMIT = -1;
+--CREATE DATABASE erfq_system
+--  WITH
+--  OWNER = postgres
+--  ENCODING = 'UTF8'
+--  LC_COLLATE = 'en_US.UTF-8'
+--  LC_CTYPE = 'en_US.UTF-8'
+--  TABLESPACE = pg_default
+--  CONNECTION LIMIT = -1;
 
 -- Enable Required Extensions
-\c erfq_system;
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";    -- สำหรับ generate UUID
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";     -- สำหรับ encryption
+--CREATE EXTENSION IF NOT EXISTS "uuid-ossp";    -- สำหรับ generate UUID
+-- EXTENSION IF NOT EXISTS "pgcrypto";     -- สำหรับ encryption
 
 -- =============================================
 -- SECTION 1: MASTER DATA & LOOKUPS
@@ -339,7 +338,9 @@ COMMENT ON COLUMN Users.IsDeleted IS 'Soft delete flag';
 -- Note: ลบ Username ออกเพราะใช้ Email login
 
 -- 3.2 UserCompanyRoles
--- ตาราง: บทบาทของ User ในแต่ละบริษัท
+-- ตาราง: บทบาทของ User 
+-- REQUESTER = 3, APPROVER = 4, PURCHASING = 5
+--'Role IDs: 3=REQUESTER, 4=APPROVER, 5=PURCHASING - REQUESTER cannot be APPROVER or PURCHASING';
 CREATE TABLE UserCompanyRoles (
   Id BIGSERIAL PRIMARY KEY,
   UserId BIGINT NOT NULL REFERENCES Users(Id),
@@ -366,13 +367,12 @@ CREATE TABLE UserCompanyRoles (
   
   UNIQUE(UserId, CompanyId),
   CONSTRAINT chk_role_rules CHECK (
+  --ใช้ Hard-coded Role IDs (Simple but Less Flexible) + Application Layer Validation (Most Flexible)
     -- Requester cannot be Approver or Purchasing
     NOT (
-      (PrimaryRoleId = (SELECT Id FROM Roles WHERE RoleCode = 'REQUESTER') 
-       AND SecondaryRoleId IN (SELECT Id FROM Roles WHERE RoleCode IN ('APPROVER','PURCHASING')))
-      OR
-      (SecondaryRoleId = (SELECT Id FROM Roles WHERE RoleCode = 'REQUESTER') 
-       AND PrimaryRoleId IN (SELECT Id FROM Roles WHERE RoleCode IN ('APPROVER','PURCHASING')))
+        (PrimaryRoleId = 3 AND SecondaryRoleId IN (4, 5))
+        OR 
+        (SecondaryRoleId = 3 AND PrimaryRoleId IN (4, 5))
     )
   ),
   CONSTRAINT chk_date_validity CHECK (EndDate IS NULL OR EndDate > StartDate)
@@ -1577,41 +1577,205 @@ GROUP BY r.Id;
 -- INITIAL DATA
 -- =============================================
 
--- Insert Roles
-INSERT INTO Roles (RoleCode, RoleName, RoleNameTh, Description) VALUES
-  ('SUPER_ADMIN', 'Super Administrator', 'ผู้ดูแลระบบสูงสุด', 'Full system access'),
-  ('ADMIN', 'Administrator', 'ผู้ดูแลระบบ', 'System administration'),
-  ('REQUESTER', 'Requester', 'ผู้ขอเสนอราคา', 'Create and submit RFQs'),
-  ('APPROVER', 'Approver', 'ผู้อนุมัติ', 'Approve RFQs'),
-  ('PURCHASING', 'Purchasing', 'จัดซื้อ', 'Manage RFQs and suppliers'),
-  ('PURCHASING_APPROVER', 'Purchasing Approver', 'ผู้อนุมัติจัดซื้อ', 'Approve supplier selection'),
-  ('SUPPLIER', 'Supplier', 'ผู้ขาย/ผู้รับเหมา', 'Submit quotations'),
-  ('MANAGING_DIRECTOR', 'Managing Director, Manager', 'กรรมการผู้จัดการ, ผู้จัดการ', 'Executive dashboard and reports')
-ON CONFLICT (RoleCode) DO NOTHING;
-
--- Insert Business Types
-INSERT INTO BusinessTypes (Id, Code, NameTh, NameEn, SortOrder) VALUES
-  (1, 'INDIVIDUAL', 'บุคคลธรรมดา', 'Individual', 1),
-  (2, 'CORPORATE', 'นิติบุคคล', 'Corporate', 2)
-ON CONFLICT (Id) DO NOTHING;
-
--- Insert Job Types
-INSERT INTO JobTypes (Id, Code, NameTh, NameEn, ForSupplier, ForRfq, PriceComparisonRule, SortOrder) VALUES
-  (1, 'BUY', 'ซื้อ', 'Buy', TRUE, TRUE, 'MIN', 1),
-  (2, 'SELL', 'ขาย', 'Sell', TRUE, TRUE, 'MAX', 2),
-  (3, 'BOTH', 'ทั้งซื้อและขาย', 'Both Buy and Sell', TRUE, FALSE, NULL, 3)
-ON CONFLICT (Id) DO NOTHING;
-
+-- ============================================
+-- 1. CURRENCIES (Initial Data มีแล้ว 6 สกุลเงิน)
+-- ============================================
 -- Insert Common Currencies
 INSERT INTO Currencies (CurrencyCode, CurrencyName, CurrencySymbol, DecimalPlaces) VALUES
-  ('THB', 'Thai Baht', '฿', 2),
-  ('USD', 'US Dollar', ', 2),
-  ('EUR', 'Euro', '€', 2),
-  ('GBP', 'British Pound', '£', 2),
-  ('JPY', 'Japanese Yen', '¥', 0),
-  ('CNY', 'Chinese Yuan', '¥', 2)
+  ("THB", "Thai Baht", "฿", 2),
+  ("USD", "US Dollar", "$", 2),
+  ("EUR", "Euro", "€", 2),
+  ("GBP", "British Pound", "£", 2),
+  ("JPY", "Japanese Yen", "¥", 0),
+  ("CNY", "Chinese Yuan", "¥", 2)
 ON CONFLICT (CurrencyCode) DO NOTHING;
 
+-- ============================================
+-- 2. COUNTRIES
+-- ============================================
+INSERT INTO Countries (CountryCode, CountryNameEn, CountryNameTh, DefaultCurrencyId, Timezone, PhoneCode) VALUES
+("TH", "Thailand", "ประเทศไทย", 1, "Asia/Bangkok", "+66"),
+("US", "United States", "สหรัฐอเมริกา", 2, "America/New_York", "+1"),
+("CN", "China", "จีน", 6, "Asia/Shanghai", "+86"),
+("JP", "Japan", "ญี่ปุ่น", 5, "Asia/Tokyo", "+81"),
+("GB", "United Kingdom", "อังกฤษ", 4, "Europe/London", "+44");
+
+-- ============================================
+-- 3. BUSINESSTYPES (Initial Data มีแล้ว)
+-- ============================================
+-- Insert Business Types
+INSERT INTO BusinessTypes (Id, Code, NameTh, NameEn, SortOrder) VALUES
+  (1, "INDIVIDUAL", "บุคคลธรรมดา", "Individual", 1),
+  (2, "CORPORATE", "นิติบุคคล", "Corporate", 2)
+ON CONFLICT (Id) DO NOTHING;
+
+-- ============================================
+-- 4. JOBTYPES (Initial Data มีแล้ว)
+-- ============================================
+-- Insert Job Types
+INSERT INTO JobTypes (Id, Code, NameTh, NameEn, ForSupplier, ForRfq, PriceComparisonRule, SortOrder) VALUES
+  (1, "BUY", "ซื้อ", "Buy", TRUE, TRUE, "MIN", 1),
+  (2, "SELL", "ขาย", "Sell", TRUE, TRUE, "MAX", 2),
+  (3, "BOTH", "ทั้งซื้อและขาย", "Both Buy and Sell", TRUE, FALSE, NULL, 3)
+ON CONFLICT (Id) DO NOTHING;
+
+-- ============================================
+-- 5. ROLES (Initial Data มีแล้ว 8 roles)
+-- ============================================
+-- Insert Roles
+INSERT INTO Roles (RoleCode, RoleName, RoleNameTh, Description) VALUES
+  ("SUPER_ADMIN", "Super Administrator", "ผู้ดูแลระบบสูงสุด", "Full system access"),
+  ("ADMIN", "Administrator", "ผู้ดูแลระบบ", "System administration"),
+  ("REQUESTER", "Requester", "ผู้ขอเสนอราคา", "Create and submit RFQs"),
+  ("APPROVER", "Approver", "ผู้อนุมัติ", "Approve RFQs"),
+  ("PURCHASING", "Purchasing", "จัดซื้อ", "Manage RFQs and suppliers"),
+  ("PURCHASING_APPROVER", "Purchasing Approver", "ผู้อนุมัติจัดซื้อ", "Approve supplier selection"),
+  ("SUPPLIER", "Supplier", "ผู้ขาย/ผู้รับเหมา", "Submit quotations"),
+  ("MANAGING_DIRECTOR", "Managing Director, Manager", "กรรมการผู้จัดการ", "ผู้จัดการ", "Executive dashboard and reports")
+ON CONFLICT (RoleCode) DO NOTHING;
+
+-- ============================================
+-- 6. PERMISSIONS
+-- ============================================
+INSERT INTO Permissions (PermissionCode, PermissionName, PermissionNameTh, Module) VALUES
+-- RFQ Module
+("RFQ_CREATE", "Create RFQ", "สร้างใบขอเสนอราคา", "RFQ"),
+("RFQ_VIEW", "View RFQ", "ดูใบขอเสนอราคา", "RFQ"),
+("RFQ_EDIT", "Edit RFQ", "แก้ไขใบขอเสนอราคา", "RFQ"),
+("RFQ_APPROVE", "Approve RFQ", "อนุมัติใบขอเสนอราคา", "RFQ"),
+("RFQ_REJECT", "Reject RFQ", "ปฏิเสธใบขอเสนอราคา", "RFQ"),
+("RFQ_INVITE_SUPPLIER", "Invite Suppliers", "เชิญผู้ขาย", "RFQ"),
+("RFQ_SELECT_WINNER", "Select Winner", "เลือกผู้ชนะ", "RFQ"),
+
+-- SUPPLIER Module
+("SUPPLIER_VIEW", "View Suppliers", "ดูผู้ขาย", "SUPPLIER"),
+("SUPPLIER_CREATE", "Create Supplier", "เพิ่มผู้ขาย", "SUPPLIER"),
+("SUPPLIER_EDIT", "Edit Supplier", "แก้ไขผู้ขาย", "SUPPLIER"),
+("SUPPLIER_APPROVE", "Approve Supplier", "อนุมัติผู้ขาย", "SUPPLIER"),
+("QUOTATION_SUBMIT", "Submit Quotation", "ส่งใบเสนอราคา", "SUPPLIER"),
+("QUOTATION_VIEW", "View Quotations", "ดูใบเสนอราคา", "SUPPLIER"),
+
+-- REPORT Module
+("REPORT_VIEW", "View Reports", "ดูรายงาน", "REPORT"),
+("REPORT_EXPORT", "Export Reports", "ส่งออกรายงาน", "REPORT"),
+("DASHBOARD_VIEW", "View Dashboard", "ดู Dashboard", "REPORT"),
+
+-- SYSTEM Module
+("SYSTEM_CONFIG", "System Configuration", "ตั้งค่าระบบ", "SYSTEM"),
+("USER_MANAGE", "Manage Users", "จัดการผู้ใช้", "SYSTEM");
+
+-- ============================================
+-- 7. ROLEPERMISSIONS - กำหนดสิทธิ์ให้แต่ละ Role
+-- ============================================
+-- Get Role IDs first
+DO $$
+DECLARE
+    requester_id BIGINT;
+    approver_id BIGINT;
+    purchasing_id BIGINT;
+    purchasing_approver_id BIGINT;
+    supplier_id BIGINT;
+    admin_id BIGINT;
+BEGIN
+    SELECT Id INTO requester_id FROM Roles WHERE RoleCode = 'REQUESTER';
+    SELECT Id INTO approver_id FROM Roles WHERE RoleCode = 'APPROVER';
+    SELECT Id INTO purchasing_id FROM Roles WHERE RoleCode = 'PURCHASING';
+    SELECT Id INTO purchasing_approver_id FROM Roles WHERE RoleCode = 'PURCHASING_APPROVER';
+    SELECT Id INTO supplier_id FROM Roles WHERE RoleCode = 'SUPPLIER';
+    SELECT Id INTO admin_id FROM Roles WHERE RoleCode = 'ADMIN';
+
+    -- REQUESTER Permissions
+    INSERT INTO RolePermissions (RoleId, PermissionId)
+    SELECT requester_id, Id FROM Permissions 
+    WHERE PermissionCode IN ('RFQ_CREATE', 'RFQ_VIEW', 'RFQ_EDIT', 'RFQ_DELETE');
+
+    -- APPROVER Permissions
+    INSERT INTO RolePermissions (RoleId, PermissionId)
+    SELECT approver_id, Id FROM Permissions 
+    WHERE PermissionCode IN ('RFQ_VIEW', 'RFQ_APPROVE', 'RFQ_REJECT');
+
+    -- PURCHASING Permissions
+    INSERT INTO RolePermissions (RoleId, PermissionId)
+    SELECT purchasing_id, Id FROM Permissions 
+    WHERE PermissionCode IN ('RFQ_VIEW', 'RFQ_INVITE_SUPPLIER', 'RFQ_SELECT_WINNER', 
+                            'SUPPLIER_VIEW', 'QUOTATION_VIEW');
+
+    -- PURCHASING_APPROVER Permissions
+    INSERT INTO RolePermissions (RoleId, PermissionId)
+    SELECT purchasing_approver_id, Id FROM Permissions 
+    WHERE PermissionCode IN ('RFQ_VIEW', 'RFQ_APPROVE', 'RFQ_REJECT', 'QUOTATION_VIEW');
+
+    -- SUPPLIER Permissions
+    INSERT INTO RolePermissions (RoleId, PermissionId)
+    SELECT supplier_id, Id FROM Permissions 
+    WHERE PermissionCode IN ('QUOTATION_SUBMIT', 'QUOTATION_VIEW');
+END $$;
+
+-- ============================================
+-- 8. CATEGORIES
+-- ============================================
+INSERT INTO Categories (CategoryCode, CategoryNameTh, CategoryNameEn, Description, SortOrder) VALUES
+('IT', 'อุปกรณ์ไอที', 'IT Equipment', 'คอมพิวเตอร์และอุปกรณ์ไอที', 1),
+('OFF', 'อุปกรณ์สำนักงาน', 'Office Supplies', 'เครื่องเขียนและอุปกรณ์สำนักงาน', 2),
+('MNT', 'งานซ่อมบำรุง', 'Maintenance Services', 'บริการซ่อมบำรุงต่างๆ', 3),
+('CON', 'งานก่อสร้าง', 'Construction', 'งานก่อสร้างและปรับปรุง', 4),
+('MKT', 'การตลาด', 'Marketing', 'สื่อโฆษณาและการตลาด', 5),
+('VEH', 'ยานพาหนะ', 'Vehicles', 'รถยนต์และอะไหล่', 6);
+
+-- ============================================
+-- 9. SUBCATEGORIES พร้อม Duration และ ResponseTimeDays
+-- ============================================
+-- IT Category
+INSERT INTO Subcategories (CategoryId, SubcategoryCode, SubcategoryNameTh, SubcategoryNameEn, 
+                          IsUseSerialNumber, Duration, ResponseTimeDays, SortOrder) VALUES
+(1, 'IT-COM', 'คอมพิวเตอร์', 'Computer', TRUE, 7, 2, 1),
+(1, 'IT-NET', 'อุปกรณ์เครือข่าย', 'Network Equipment', TRUE, 10, 3, 2),
+(1, 'IT-SOFT', 'ซอฟต์แวร์', 'Software', FALSE, 14, 3, 3),
+(1, 'IT-PRINT', 'เครื่องพิมพ์', 'Printer', TRUE, 7, 2, 4),
+
+-- Office Category
+(2, 'OFF-STA', 'เครื่องเขียน', 'Stationery', FALSE, 3, 1, 1),
+(2, 'OFF-FURN', 'เฟอร์นิเจอร์', 'Furniture', FALSE, 14, 3, 2),
+(2, 'OFF-PANT', 'งานสั่งพิมพ์', 'Printing Service', FALSE, 5, 2, 3),
+
+-- Maintenance Category
+(3, 'MNT-AC', 'ซ่อมแอร์', 'AC Maintenance', FALSE, 3, 1, 1),
+(3, 'MNT-ELEC', 'ระบบไฟฟ้า', 'Electrical System', FALSE, 5, 2, 2),
+(3, 'MNT-CLEAN', 'ทำความสะอาด', 'Cleaning Service', FALSE, 3, 1, 3),
+
+-- Construction Category
+(4, 'CON-BUILD', 'งานก่อสร้าง', 'Building Construction', FALSE, 30, 5, 1),
+(4, 'CON-RENO', 'งานปรับปรุง', 'Renovation', FALSE, 21, 3, 2),
+
+-- Marketing Category
+(5, 'MKT-MEDIA', 'สื่อโฆษณา', 'Advertising Media', FALSE, 7, 2, 1),
+(5, 'MKT-EVENT', 'จัดอีเวนต์', 'Event Management', FALSE, 14, 3, 2),
+
+-- Vehicle Category
+(6, 'VEH-CAR', 'รถยนต์', 'Cars', TRUE, 14, 3, 1),
+(6, 'VEH-PART', 'อะไหล่', 'Spare Parts', FALSE, 7, 2, 2);
+
+-- ============================================
+-- 10. SUBCATEGORYDOCREQUIREMENTS
+-- ============================================
+-- IT-COM (Computer) ต้องแนบ
+INSERT INTO SubcategoryDocRequirements (SubcategoryId, DocumentName, DocumentNameEn, IsRequired, MaxFileSize, AllowedExtensions, SortOrder) VALUES
+(1, 'รายละเอียดสินค้า', 'Product Specification', TRUE, 10, 'pdf,doc,docx', 1),
+(1, 'ใบรับประกัน', 'Warranty Certificate', TRUE, 5, 'pdf', 2),
+(1, 'แคตตาล็อก', 'Product Catalog', FALSE, 20, 'pdf', 3),
+
+-- MNT-AC (AC Maintenance) ต้องแนบ
+(8, 'ขอบเขตการทำงาน', 'Scope of Work', TRUE, 10, 'pdf,doc,docx', 1),
+(8, 'ตัวอย่างผลงาน', 'Work Portfolio', FALSE, 30, 'pdf,jpg,png', 2),
+
+-- CON-BUILD (Construction) ต้องแนบ
+(11, 'แบบแปลน', 'Blueprint', TRUE, 50, 'pdf,dwg', 1),
+(11, 'BOQ', 'Bill of Quantities', TRUE, 20, 'xlsx,xls,pdf', 2),
+(11, 'ใบอนุญาตก่อสร้าง', 'Construction Permit', TRUE, 10, 'pdf', 3);
+
+-- ============================================
+-- 11. INCOTERMS (Initial Data มีแล้ว)
+-- ============================================
 -- Insert Common Incoterms
 INSERT INTO Incoterms (IncotermCode, IncotermName, Description) VALUES
   ('EXW', 'Ex Works', 'Seller makes goods available at their premises'),
@@ -1629,41 +1793,6 @@ INSERT INTO NotificationRules (RoleType, EventType, DaysAfterNoAction, NotifyRec
   ('SUPPLIER', 'NO_ACTION_2_DAYS', 2, '{SUPPLIER_CONTACTS}', '{IN_APP, EMAIL}'),
   ('SUPPLIER', 'DEADLINE_24H', NULL, '{SUPPLIER_CONTACTS}', '{IN_APP, EMAIL, SMS}')
 ON CONFLICT DO NOTHING;
-
--- =============================================
--- TRIGGERS
--- =============================================
-
--- Auto-update UpdatedAt timestamp
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $
-BEGIN
-    NEW.UpdatedAt = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$ LANGUAGE plpgsql;
-
--- Apply trigger to all tables with UpdatedAt column
-DO $
-DECLARE
-    t record;
-BEGIN
-    FOR t IN 
-        SELECT DISTINCT table_name 
-        FROM information_schema.columns 
-        WHERE column_name = 'updatedat' 
-        AND table_schema = 'public'
-        AND table_name NOT LIKE 'vw_%'
-    LOOP
-        EXECUTE format('DROP TRIGGER IF EXISTS update_%I_updated_at ON %I',
-                       t.table_name, t.table_name);
-        EXECUTE format('CREATE TRIGGER update_%I_updated_at 
-                       BEFORE UPDATE ON %I 
-                       FOR EACH ROW 
-                       EXECUTE FUNCTION update_updated_at_column()',
-                       t.table_name, t.table_name);
-    END LOOP;
-END $;
 
 -- =============================================
 -- END OF DATABASE SCHEMA
