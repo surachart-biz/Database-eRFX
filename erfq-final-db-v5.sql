@@ -1565,13 +1565,13 @@ WHERE Status NOT IN ('COMPLETED', 'REJECTED', 'SAVE_DRAFT');
 CREATE INDEX idx_rfqs_pending_notifications ON Rfqs(CurrentActorReceivedAt, LastReminderSentAt, Status) 
 WHERE Status IN ('PENDING', 'PROCESSING');
 
--- 3. Optional: สร้าง Composite Index ที่ครอบคลุมหลาย queries
-CREATE INDEX idx_rfqs_workflow ON Rfqs(
-    Status, 
-    CurrentActorId, 
-    CurrentActorReceivedAt,
-    LastReminderSentAt
-) WHERE Status NOT IN ('COMPLETED', 'REJECTED', 'SAVE_DRAFT');
+-- -- 3. Optional: สร้าง Composite Index ที่ครอบคลุมหลาย queries
+-- CREATE INDEX idx_rfqs_workflow ON Rfqs(
+    -- Status, 
+    -- CurrentActorId, 
+    -- CurrentActorReceivedAt,
+    -- LastReminderSentAt
+-- ) WHERE Status NOT IN ('COMPLETED', 'REJECTED', 'SAVE_DRAFT');
 -- 21-08
 
 -- Index สำหรับ Ontime/Delay calculation
