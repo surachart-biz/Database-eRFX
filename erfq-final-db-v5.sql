@@ -121,12 +121,17 @@ COMMENT ON TABLE Roles IS 'บทบาทผู้ใช้งานในร�
 CREATE TABLE RoleResponseTimes (
     Id BIGSERIAL PRIMARY KEY,
     RoleCode VARCHAR(30) UNIQUE NOT NULL,
-    ResponseTimeDays INT NOT NULL, -- -- 2 วัน (ค่ามาตรฐาน)
+    ResponseTimeDays INT NOT NULL,		-- -- 2 วัน (ค่ามาตรฐาน)
     Description TEXT,
     IsActive BOOLEAN DEFAULT TRUE,
     CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt TIMESTAMP
+    UpdatedAt TIMESTAMP,
+    
+    CONSTRAINT chk_role_response_code CHECK (RoleCode IN 
+        ('REQUESTER','APPROVER','PURCHASING','PURCHASING_APPROVER','SUPPLIER'))
 );
+
+COMMENT ON TABLE RoleResponseTimes IS 'ระยะเวลามาตรฐานของแต่ละ Role';
 
 -- 1.6 Permissions
 -- ตาราง: สิทธิ์การใช้งาน
@@ -1438,7 +1443,6 @@ CREATE INDEX idx_rfqs_status ON Rfqs(Status) WHERE Status != 'COMPLETED';
 CREATE INDEX idx_rfqs_status_rebid ON Rfqs(Status) WHERE Status = 'RE_BID';
 CREATE INDEX idx_rfqs_company ON Rfqs(CompanyId);
 CREATE INDEX idx_rfqs_requester ON Rfqs(RequesterId);
-CREATE INDEX idx_rfqs_current_actor ON Rfqs(CurrentActorId) WHERE Status = 'PENDING';
 CREATE INDEX idx_rfqs_deadline ON Rfqs(QuotationDeadline) WHERE Status NOT IN ('COMPLETED','REJECTED');
 CREATE INDEX idx_rfqs_submission_deadline ON Rfqs(SubmissionDeadline) WHERE Status IN ('PENDING', 'RE_BID');
 CREATE INDEX idx_rfqs_reminder ON Rfqs(LastActionAt, Status) 
@@ -1513,8 +1517,7 @@ CREATE INDEX idx_refresh_tokens_user ON RefreshTokens(UserId)
   WHERE UserType = 'Employee';
 CREATE INDEX idx_refresh_tokens_contact ON RefreshTokens(ContactId) 
   WHERE UserType = 'SupplierContact';
-CREATE INDEX idx_refresh_tokens_active ON RefreshTokens(Token) 
-  WHERE RevokedAt IS NULL AND ExpiresAt > NOW();
+
 
 -- LoginHistory
 CREATE INDEX idx_login_history_user ON LoginHistory(UserId) 
@@ -1531,24 +1534,45 @@ CREATE INDEX idx_activity_logs_date ON ActivityLogs(CreatedAt DESC);
 
 -- SystemConfigurations
 CREATE INDEX idx_system_config_key ON SystemConfigurations(ConfigKey) WHERE IsActive = TRUE;
+-- สร้าง Indexes ใหม่โดยไม่ใช้ NOW()
+CREATE INDEX idx_refresh_tokens_active ON RefreshTokens(Token, ExpiresAt) 
+WHERE RevokedAt IS NULL;
 
+
+CREATE INDEX idx_wolverine_scheduled_time ON wolverine_scheduled_envelopes(scheduled_time);
 -- ErrorLogs
 CREATE INDEX idx_error_logs_date ON ErrorLogs(CreatedAt DESC);
 CREATE INDEX idx_error_logs_unresolved ON ErrorLogs(CreatedAt DESC) WHERE IsResolved = FALSE;
 
 -- Wolverine tables
 CREATE INDEX idx_wolverine_outgoing_status ON wolverine_outgoing_envelopes(status, deliver_by);
-CREATE INDEX idx_wolverine_scheduled_time ON wolverine_scheduled_envelopes(scheduled_time) 
-  WHERE scheduled_time > NOW();
+
 
 -- SignalR
 CREATE INDEX idx_signalr_active ON SignalRConnections(IsActive, LastPingAt)
   WHERE IsActive = TRUE;
 
 
+-- 21-08
+CREATE INDEX idx_rfqs_current_actor_pending ON Rfqs(CurrentActorId) 
+WHERE Status = 'PENDING';
+
+-- Index สำหรับคำนวณ Ontime/Delay
+CREATE INDEX idx_rfqs_current_actor_timeline ON Rfqs(CurrentActorId, CurrentActorReceivedAt) 
+WHERE Status NOT IN ('COMPLETED', 'REJECTED', 'SAVE_DRAFT');
+
 -- Index สำหรับ Notification queries
-CREATE INDEX idx_rfqs_pending_notifications ON Rfqs(CurrentActorReceivedAt, LastReminderSentAt) 
+CREATE INDEX idx_rfqs_pending_notifications ON Rfqs(CurrentActorReceivedAt, LastReminderSentAt, Status) 
 WHERE Status IN ('PENDING', 'PROCESSING');
+
+-- 3. Optional: สร้าง Composite Index ที่ครอบคลุมหลาย queries
+CREATE INDEX idx_rfqs_workflow ON Rfqs(
+    Status, 
+    CurrentActorId, 
+    CurrentActorReceivedAt,
+    LastReminderSentAt
+) WHERE Status NOT IN ('COMPLETED', 'REJECTED', 'SAVE_DRAFT');
+-- 21-08
 
 -- Index สำหรับ Ontime/Delay calculation
 CREATE INDEX idx_rfqs_current_actor ON Rfqs(CurrentActorId, CurrentActorReceivedAt) 
@@ -1571,6 +1595,24 @@ CREATE TRIGGER trg_update_rfq_overdue
     BEFORE INSERT OR UPDATE OF RequiredQuotationDate ON Rfqs
     FOR EACH ROW
     EXECUTE FUNCTION update_rfq_overdue();
+
+-- ========================================
+-- FIX 4: เพิ่ม Function สำหรับ Update ProcessingDays
+-- ========================================
+CREATE OR REPLACE FUNCTION update_processing_days()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.Status = 'COMPLETED' AND OLD.Status != 'COMPLETED' THEN
+        NEW.ProcessingDays = EXTRACT(DAY FROM NEW.UpdatedAt - NEW.CreatedAt)::INT;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_update_processing_days
+    BEFORE UPDATE ON Rfqs
+    FOR EACH ROW
+    EXECUTE FUNCTION update_processing_days();
 	
 -- =============================================
 -- INITIAL DATA
@@ -1581,31 +1623,31 @@ CREATE TRIGGER trg_update_rfq_overdue
 -- ============================================
 -- Insert Common Currencies
 INSERT INTO Currencies (CurrencyCode, CurrencyName, CurrencySymbol, DecimalPlaces) VALUES
-  ("THB", "Thai Baht", "฿", 2),
-  ("USD", "US Dollar", "$", 2),
-  ("EUR", "Euro", "€", 2),
-  ("GBP", "British Pound", "£", 2),
-  ("JPY", "Japanese Yen", "¥", 0),
-  ("CNY", "Chinese Yuan", "¥", 2)
+  ('THB', 'Thai Baht', '฿', 2),
+  ('USD', 'US Dollar', '$', 2),
+  ('EUR', 'Euro', '€', 2),
+  ('GBP', 'British Pound', '£', 2),
+  ('JPY', 'Japanese Yen', '¥', 0),
+  ('CNY', 'Chinese Yuan', '¥', 2)
 ON CONFLICT (CurrencyCode) DO NOTHING;
 
 -- ============================================
 -- 2. COUNTRIES
 -- ============================================
 INSERT INTO Countries (CountryCode, CountryNameEn, CountryNameTh, DefaultCurrencyId, Timezone, PhoneCode) VALUES
-("TH", "Thailand", "ประเทศไทย", 1, "Asia/Bangkok", "+66"),
-("US", "United States", "สหรัฐอเมริกา", 2, "America/New_York", "+1"),
-("CN", "China", "จีน", 6, "Asia/Shanghai", "+86"),
-("JP", "Japan", "ญี่ปุ่น", 5, "Asia/Tokyo", "+81"),
-("GB", "United Kingdom", "อังกฤษ", 4, "Europe/London", "+44");
+('TH', 'Thailand', 'ประเทศไทย', 1, 'Asia/Bangkok', '+66'),
+('US', 'United States', 'สหรัฐอเมริกา', 2, 'America/New_York', '+1'),
+('CN', 'China', 'จีน', 6, 'Asia/Shanghai', '+86'),
+('JP', 'Japan', 'ญี่ปุ่น', 5, 'Asia/Tokyo', '+81'),
+('GB', 'United Kingdom', 'อังกฤษ', 4, 'Europe/London', '+44');
 
 -- ============================================
 -- 3. BUSINESSTYPES (Initial Data มีแล้ว)
 -- ============================================
 -- Insert Business Types
 INSERT INTO BusinessTypes (Id, Code, NameTh, NameEn, SortOrder) VALUES
-  (1, "INDIVIDUAL", "บุคคลธรรมดา", "Individual", 1),
-  (2, "CORPORATE", "นิติบุคคล", "Corporate", 2)
+  (1, 'INDIVIDUAL', 'บุคคลธรรมดา', 'Individual', 1),
+  (2, 'CORPORATE', 'นิติบุคคล', 'Corporate', 2)
 ON CONFLICT (Id) DO NOTHING;
 
 -- ============================================
@@ -1613,9 +1655,9 @@ ON CONFLICT (Id) DO NOTHING;
 -- ============================================
 -- Insert Job Types
 INSERT INTO JobTypes (Id, Code, NameTh, NameEn, ForSupplier, ForRfq, PriceComparisonRule, SortOrder) VALUES
-  (1, "BUY", "ซื้อ", "Buy", TRUE, TRUE, "MIN", 1),
-  (2, "SELL", "ขาย", "Sell", TRUE, TRUE, "MAX", 2),
-  (3, "BOTH", "ทั้งซื้อและขาย", "Both Buy and Sell", TRUE, FALSE, NULL, 3)
+  (1, 'BUY', 'ซื้อ', 'Buy', TRUE, TRUE, 'MIN', 1),
+  (2, 'SELL', 'ขาย', 'Sell', TRUE, TRUE, 'MAX', 2),
+  (3, 'BOTH', 'ทั้งซื้อและขาย', 'Both Buy and Sell', TRUE, FALSE, NULL, 3)
 ON CONFLICT (Id) DO NOTHING;
 
 -- ============================================
@@ -1623,14 +1665,14 @@ ON CONFLICT (Id) DO NOTHING;
 -- ============================================
 -- Insert Roles
 INSERT INTO Roles (RoleCode, RoleName, RoleNameTh, Description) VALUES
-  ("SUPER_ADMIN", "Super Administrator", "ผู้ดูแลระบบสูงสุด", "Full system access"),
-  ("ADMIN", "Administrator", "ผู้ดูแลระบบ", "System administration"),
-  ("REQUESTER", "Requester", "ผู้ขอเสนอราคา", "Create and submit RFQs"),
-  ("APPROVER", "Approver", "ผู้อนุมัติ", "Approve RFQs"),
-  ("PURCHASING", "Purchasing", "จัดซื้อ", "Manage RFQs and suppliers"),
-  ("PURCHASING_APPROVER", "Purchasing Approver", "ผู้อนุมัติจัดซื้อ", "Approve supplier selection"),
-  ("SUPPLIER", "Supplier", "ผู้ขาย/ผู้รับเหมา", "Submit quotations"),
-  ("MANAGING_DIRECTOR", "Managing Director, Manager", "กรรมการผู้จัดการ", "ผู้จัดการ", "Executive dashboard and reports")
+  ('SUPER_ADMIN', 'Super Administrator', 'ผู้ดูแลระบบสูงสุด', 'Full system access'),
+  ('ADMIN', 'Administrator', 'ผู้ดูแลระบบ', 'System administration'),
+  ('REQUESTER', 'Requester', 'ผู้ขอเสนอราคา', 'Create and submit RFQs'),
+  ('APPROVER', 'Approver', 'ผู้อนุมัติ', 'Approve RFQs'),
+  ('PURCHASING', 'Purchasing', 'จัดซื้อ', 'Manage RFQs and suppliers'),
+  ('PURCHASING_APPROVER', 'Purchasing Approver', 'ผู้อนุมัติจัดซื้อ', 'Approve supplier selection'),
+  ('SUPPLIER', 'Supplier', 'ผู้ขาย/ผู้รับเหมา', 'Submit quotations'),
+  ('MANAGING_DIRECTOR', 'Managing Director', 'กรรมการผู้จัดการ', 'Executive dashboard and reports')
 ON CONFLICT (RoleCode) DO NOTHING;
 
 -- Insert ค่าเริ่มต้น ResponseTime ของแต่ละ Role
@@ -1646,30 +1688,30 @@ INSERT INTO RoleResponseTimes (RoleCode, ResponseTimeDays, Description) VALUES
 -- ============================================
 INSERT INTO Permissions (PermissionCode, PermissionName, PermissionNameTh, Module) VALUES
 -- RFQ Module
-("RFQ_CREATE", "Create RFQ", "สร้างใบขอเสนอราคา", "RFQ"),
-("RFQ_VIEW", "View RFQ", "ดูใบขอเสนอราคา", "RFQ"),
-("RFQ_EDIT", "Edit RFQ", "แก้ไขใบขอเสนอราคา", "RFQ"),
-("RFQ_APPROVE", "Approve RFQ", "อนุมัติใบขอเสนอราคา", "RFQ"),
-("RFQ_REJECT", "Reject RFQ", "ปฏิเสธใบขอเสนอราคา", "RFQ"),
-("RFQ_INVITE_SUPPLIER", "Invite Suppliers", "เชิญผู้ขาย", "RFQ"),
-("RFQ_SELECT_WINNER", "Select Winner", "เลือกผู้ชนะ", "RFQ"),
+('RFQ_CREATE', 'Create RFQ', 'สร้างใบขอเสนอราคา', 'RFQ'),
+('RFQ_VIEW', 'View RFQ', 'ดูใบขอเสนอราคา', 'RFQ'),
+('RFQ_EDIT', 'Edit RFQ', 'แก้ไขใบขอเสนอราคา', 'RFQ'),
+('RFQ_APPROVE', 'Approve RFQ', 'อนุมัติใบขอเสนอราคา', 'RFQ'),
+('RFQ_REJECT', 'Reject RFQ', 'ปฏิเสธใบขอเสนอราคา', 'RFQ'),
+('RFQ_INVITE_SUPPLIER', 'Invite Suppliers', 'เชิญผู้ขาย', 'RFQ'),
+('RFQ_SELECT_WINNER', 'Select Winner', 'เลือกผู้ชนะ', 'RFQ'),
 
 -- SUPPLIER Module
-("SUPPLIER_VIEW", "View Suppliers", "ดูผู้ขาย", "SUPPLIER"),
-("SUPPLIER_CREATE", "Create Supplier", "เพิ่มผู้ขาย", "SUPPLIER"),
-("SUPPLIER_EDIT", "Edit Supplier", "แก้ไขผู้ขาย", "SUPPLIER"),
-("SUPPLIER_APPROVE", "Approve Supplier", "อนุมัติผู้ขาย", "SUPPLIER"),
-("QUOTATION_SUBMIT", "Submit Quotation", "ส่งใบเสนอราคา", "SUPPLIER"),
-("QUOTATION_VIEW", "View Quotations", "ดูใบเสนอราคา", "SUPPLIER"),
+('SUPPLIER_VIEW', 'View Suppliers', 'ดูผู้ขาย', 'SUPPLIER'),
+('SUPPLIER_CREATE', 'Create Supplier', 'เพิ่มผู้ขาย', 'SUPPLIER'),
+('SUPPLIER_EDIT', 'Edit Supplier', 'แก้ไขผู้ขาย', 'SUPPLIER'),
+('SUPPLIER_APPROVE', 'Approve Supplier', 'อนุมัติผู้ขาย', 'SUPPLIER'),
+('QUOTATION_SUBMIT', 'Submit Quotation', 'ส่งใบเสนอราคา', 'SUPPLIER'),
+('QUOTATION_VIEW', 'View Quotations', 'ดูใบเสนอราคา', 'SUPPLIER'),
 
 -- REPORT Module
-("REPORT_VIEW", "View Reports", "ดูรายงาน", "REPORT"),
-("REPORT_EXPORT", "Export Reports", "ส่งออกรายงาน", "REPORT"),
-("DASHBOARD_VIEW", "View Dashboard", "ดู Dashboard", "REPORT"),
+('REPORT_VIEW', 'View Reports', 'ดูรายงาน', 'REPORT'),
+('REPORT_EXPORT', 'Export Reports', 'ส่งออกรายงาน', 'REPORT'),
+('DASHBOARD_VIEW', 'View Dashboard', 'ดู Dashboard', 'REPORT'),
 
 -- SYSTEM Module
-("SYSTEM_CONFIG", "System Configuration", "ตั้งค่าระบบ", "SYSTEM"),
-("USER_MANAGE", "Manage Users", "จัดการผู้ใช้", "SYSTEM");
+('SYSTEM_CONFIG', 'System Configuration', 'ตั้งค่าระบบ', 'SYSTEM'),
+('USER_MANAGE', 'Manage Users', 'จัดการผู้ใช้', 'SYSTEM');
 
 -- ============================================
 -- 7. ROLEPERMISSIONS - กำหนดสิทธิ์ให้แต่ละ Role
@@ -1717,36 +1759,6 @@ BEGIN
     SELECT supplier_id, Id FROM Permissions 
     WHERE PermissionCode IN ('QUOTATION_SUBMIT', 'QUOTATION_VIEW');
 END $$;
-
--- ============================================
--- 8. CATEGORIES
--- ============================================
-INSERT INTO Categories (CategoryCode, CategoryNameTh, CategoryNameEn, Description, SortOrder) VALUES
-('IT', 'อุปกรณ์ไอที', 'IT Equipment', 'คอมพิวเตอร์และอุปกรณ์ไอที', 1),
-('OFF', 'อุปกรณ์สำนักงาน', 'Office Supplies', 'เครื่องเขียนและอุปกรณ์สำนักงาน', 2),
-('MNT', 'งานซ่อมบำรุง', 'Maintenance Services', 'บริการซ่อมบำรุงต่างๆ', 3),
-('CON', 'งานก่อสร้าง', 'Construction', 'งานก่อสร้างและปรับปรุง', 4),
-('MKT', 'การตลาด', 'Marketing', 'สื่อโฆษณาและการตลาด', 5),
-('VEH', 'ยานพาหนะ', 'Vehicles', 'รถยนต์และอะไหล่', 6);
-
-
--- ============================================
--- 10. SUBCATEGORYDOCREQUIREMENTS
--- ============================================
--- IT-COM (Computer) ต้องแนบ
-INSERT INTO SubcategoryDocRequirements (SubcategoryId, DocumentName, DocumentNameEn, IsRequired, MaxFileSize, AllowedExtensions, SortOrder) VALUES
-(1, 'รายละเอียดสินค้า', 'Product Specification', TRUE, 10, 'pdf,doc,docx', 1),
-(1, 'ใบรับประกัน', 'Warranty Certificate', TRUE, 5, 'pdf', 2),
-(1, 'แคตตาล็อก', 'Product Catalog', FALSE, 20, 'pdf', 3),
-
--- MNT-AC (AC Maintenance) ต้องแนบ
-(8, 'ขอบเขตการทำงาน', 'Scope of Work', TRUE, 10, 'pdf,doc,docx', 1),
-(8, 'ตัวอย่างผลงาน', 'Work Portfolio', FALSE, 30, 'pdf,jpg,png', 2),
-
--- CON-BUILD (Construction) ต้องแนบ
-(11, 'แบบแปลน', 'Blueprint', TRUE, 50, 'pdf,dwg', 1),
-(11, 'BOQ', 'Bill of Quantities', TRUE, 20, 'xlsx,xls,pdf', 2),
-(11, 'ใบอนุญาตก่อสร้าง', 'Construction Permit', TRUE, 10, 'pdf', 3);
 
 -- ============================================
 -- 11. INCOTERMS (Initial Data มีแล้ว)
