@@ -1,7 +1,8 @@
 -- =============================================
 -- E-RFQ SYSTEM COMPLETE DATABASE SCHEMA v6.0
 -- Database: PostgreSQL 14+
--- Last Updated: January 2025
+-- Last Updated: January 
+-- rename to eRFX_Complete_Database_V6_0.sql
 -- =============================================
 
 -- =============================================
