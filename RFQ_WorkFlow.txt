@@ -1,0 +1,32 @@
+RFQ_Flow
+ปัจจุบัน
+สมชาย (REQUESTER) - ลูกน้อง IT
+    ↓ สร้าง RFQ + ส่งอนุมัติ
+    
+👔 ประเสริฐ (APPROVER Level 1) - หัวหน้าแผนก IT
+    ↓ อนุมัติ/ไม่อนุมัติ
+    
+🏢 วิชัย (ถ้ามี ? APPROVER Level 2) - ผู้จัดการฝ่าย/Executive  
+    ↓ อนุมัติ/ไม่อนุมัติ
+    
+🏛️ สมศักดิ์ (ถ้ามี ? APPROVER Level 3) - ผู้บริหารระดับสูง/Executive
+    ↓ อนุมัติ/ไม่อนุมัติ
+    
+📦 ณัฐยา (PURCHASING) - ลูกน้อง จัดซื้อ
+    ↓ เชิญ Supplier + จัดการ
+
+👔 A (PURCHASING_APPROVER Level 1) - หัวหน้าแผนก PURCHASING
+    ↓ อนุมัติ/ไม่อนุมัติ
+    
+🏢 B (ถ้ามี ? PURCHASING_APPROVER Level 2) - ผู้จัดการฝ่าย/Executive PURCHASING  
+    ↓ อนุมัติ/ไม่อนุมัติ
+    
+🏛️ อนุวัฒน์ (ถ้ามี ? PURCHASING_APPROVER Level 3) - ผู้บริหารระดับสูง/Executive PURCHASING
+    ↓ อนุมัติ/ไม่อนุมัติ
+	
+
+
+
+
+
+
