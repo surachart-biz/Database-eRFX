@@ -1,0 +1,84 @@
+Dashboard Requester (RealTime)
+ หัวข้อ ใบขอราคา
+ตัวเลือกช่วงวันที่ (Date Range Selector) ฟังก์ชัน: อนุญาตให้ผู้ใช้กรองจำนวนสถานะใบขอราคาตามวันที่เริ่มต้นและสิ้นสุดที่ระบุ โดยใช้ วันที่สร้าง (Date Created) 
+Total		|	Save Draft	|	Pending		|	Declined	|	Rejected	|	Completed
+จำนวน		  	  จำนวน			 จำนวน			 จำนวน			 จำนวน			  จำนวน
+Just now	|	4 hours ago	|	Just now	|	Just now	|	Just now	|	Just now	
+ 
+ หัวข้อ 5 ใบขอราคาที่ใกล้ครบกำหนดในสัปดาห์นี้ ฟังก์ชัน: เงื่อนไข แสดง fix 5 รายการ สถานะ “Pending ” โดยนับตั้งแต่ วันที่ต้องการรับใบเสนอราคา มา 5 วัน
+Format ShortNameEn-yy-mm-xxxx + ชื่อโครงการ/งาน + "Due" + วันที่ต้องการรับใบเสนอราคา
+ 
+ หัวข้อ การแจ้งเตือนล่าสุด
+Format	If		Rfqs.Status = "Save Draft" > Icon + "ใบขอราคาของคุณ ที่บันทึกแบบร่างไว้ ใกล้จะหมดอายุแล้ว กรุณาตรวจสอบใบขอราคา ที่เมนู ดูใบของราคา" + 3 hours ago
+		else	Icon+ShortNameEn-yy-mm-xxxx + "ชื่อโครงการ/งาน" + ผู้ส่ง + {action} + สถานะ {action}+ 3 hours ago
+
+Dashboard Approver (RealTime)
+ หัวข้อ ใบขอราคา
+ตัวเลือกช่วงวันที่ (Date Range Selector) ฟังก์ชัน: อนุญาตให้ผู้ใช้กรองจำนวนสถานะใบขอราคาตามวันที่เริ่มต้นและสิ้นสุดที่ระบุ โดยใช้ วันที่สร้าง (Date Created) 
+Total		|	 Pending	|
+จำนวน		  	  จำนวน		
+Just now	|	4 hours ago	|	
+ 
+ หัวข้อ 5 ใบขอราคาที่ใกล้ครบเวลาพิจารณาในสัปดาห์นี้ ฟังก์ชัน: เงื่อนไข แสดง fix 5 รายการ สถานะ “Pending ” โดยนับตั้งแต่ วันที่ต้องการรับใบเสนอราคา มา 5 วัน
+Format ShortNameEn-yy-mm-xxxx + ชื่อโครงการ/งาน + "Due" + วันที่ต้องการรับใบเสนอราคา
+ 
+ หัวข้อ การแจ้งเตือนล่าสุด
+Format	Icon+ShortNameEn-yy-mm-xxxx + "ชื่อโครงการ/งาน" + ผู้ส่ง + {action} + สถานะ {action} + 3 hours ago
+
+Dashboard Purchasing (RealTime)
+ หัวข้อ ใบขอราคา
+ตัวเลือกช่วงวันที่ (Date Range Selector) ฟังก์ชัน: อนุญาตให้ผู้ใช้กรองจำนวนสถานะใบขอราคาตามวันที่เริ่มต้นและสิ้นสุดที่ระบุ โดยใช้ วันที่สร้าง (Date Created) 
+Total		|	 Pending	|	Declined	|	Rejected	|	Completed	|	
+จำนวน		  	  จำนวน			 จำนวน			 จำนวน			 จำนวน		
+Just now	|	4 hours ago	|	Just now	|	Just now	|	Just now	|	
+ 
+ หัวข้อ 5 Supplier ที่เข้าร่วมเสนอราคาเข้ามาสัปดาห์นี้ ฟังก์ชัน: เงื่อนไข แสดง fix 5 รายการ
+Format ShortNameEn-yy-mm-xxxx + ชื่อโครงการ/งาน + จำนวน "ราย"
+
+ หัวข้อ 5 Supplier ลงทะเบียนล่าสุด
+Format Icon	| "บริษัท" + ชื่อบริษัท/หน่วยงาน	|	คุณ (ชื่อ-สกุล ผู้ติดต่อหลัก)	|	เบอร์โทร	|	สถานะ
+
+ หัวข้อ 5 คำถามจาก Supplier ที่ยังไม่ได้ตอบ
+Format Icon	| ชื่อบริษัท/หน่วยงาน	|	คนที่ถาม	|	สถานะ
+ 
+ หัวข้อ การแจ้งเตือนล่าสุด
+Format	Icon+ShortNameEn-yy-mm-xxxx + "ชื่อโครงการ/งาน" + ผู้ส่ง + {action} + สถานะ {action} + 3 hours ago
+
+Dashboard Supplier (RealTime)
+ หัวข้อ รายการเสนอราคา
+ตัวเลือกช่วงวันที่ (Date Range Selector) ฟังก์ชัน: อนุญาตให้ผู้ใช้กรองจำนวนสถานะใบขอราคาตามวันที่เริ่มต้นและสิ้นสุดที่ระบุ โดยใช้ วันที่สร้าง (Date Created) 
+Total		|	 ยังไม่ตอบรับ	|	ตอบรับ และเข้าร่วม	|	ตอบรับ แต่ปฏิเสธ	|	
+จำนวน		  	  จำนวน			 	จำนวน			 	จำนวน			
+Just now	|	4 hours ago	|	  Just now		|	  Just now		|	
+ 
+ หัวข้อ 5 คำเชิญ ให้เข้าร่วมรายการเสนอราคา ฟังก์ชัน: เงื่อนไข แสดง fix 5 รายการ
+รูปแบบรายการ: แสดงรายการใบขอราคา แต่ละรายการโดยทั่วไปจะประกอบด้วย:
+			ShortNameEn-yy-mm-xxxx
+			"ชื่อโครงการ/งาน"
+			"วันที่ต้องการใบเสนอราคา"   Rfqs.วันที่ต้องการใบเสนอราคา
+			ปุ่ม ดูรายละเอียด
+
+ หัวข้อ 5 ใบเสนอราคาที่ใกล้ครบกำหนดเสนอราคาในสัปดาห์นี้
+Format Icon+ShortNameEn-yy-mm-xxxx + "ชื่อโครงการ/งาน" + Expires date
+
+ หัวข้อ ถาม / ตอบ จัดซื้อล่าสุด
+Format Icon	+ "ชื่อโครงการ/งาน"  + สถานะ
+ 
+ หัวข้อ การแจ้งเตือนล่าสุด
+Format	Icon+ShortNameEn-yy-mm-xxxx + "ชื่อโครงการ/งาน" + ผู้ส่ง + {action} + สถานะ {action} + 3 hours ago
+
+Dashboard Purchasing Approver (RealTime)
+ หัวข้อ Supplier เสนอราคา
+ตัวเลือกช่วงวันที่ (Date Range Selector) ฟังก์ชัน: อนุญาตให้ผู้ใช้กรองจำนวนสถานะใบขอราคาตามวันที่เริ่มต้นและสิ้นสุดที่ระบุ โดยใช้ วันที่สร้าง (Date Created) 
+Total		|	 Pending	|	Declined	|	Rejected	|	Completed	|	
+จำนวน		  	  จำนวน			 จำนวน			 จำนวน			 จำนวน		
+Just now	|	4 hours ago	|	Just now	|	Just now	|	Just now	|	
+ 
+ หัวข้อ 5 Supplier เสนอราคาเข้ามาสัปดาห์นี้ ฟังก์ชัน: เงื่อนไข แสดง fix 5 รายการ
+Format ShortNameEn-yy-mm-xxxx + ชื่อโครงการ/งาน + จำนวน "ราย"
+
+ หัวข้อ 5 Supplier ลงทะเบียนล่าสุด
+Format Icon	| "บริษัท" + ชื่อบริษัท/หน่วยงาน	|	คุณ (ชื่อ-สกุล ผู้ติดต่อหลัก)	|	เบอร์โทร	|	สถานะ
+
+ หัวข้อ การแจ้งเตือนล่าสุด
+Format	Icon+ShortNameEn-yy-mm-xxxx + "ชื่อโครงการ/งาน" + ผู้ส่ง + {action} + สถานะ {action} + 3 hours ago
