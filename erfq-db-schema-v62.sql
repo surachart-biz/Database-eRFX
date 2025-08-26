@@ -77,6 +77,7 @@ CREATE TABLE "Roles" (
   "RoleCode" VARCHAR(30) UNIQUE NOT NULL,
   "RoleName" VARCHAR(100) NOT NULL,
   "RoleNameTh" VARCHAR(100),
+  "RoleNameEn" VARCHAR(100),
   "Description" TEXT,
   "IsActive" BOOLEAN DEFAULT TRUE,
   "CreatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
