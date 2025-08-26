@@ -1,8 +1,4 @@
--- =============================================
--- E-RFQ SYSTEM COMPLETE DATABASE SCHEMA v6.1
--- Database: PostgreSQL 14+
--- Last Updated: January 2025
--- =============================================
+CREATE SCHEMA public;
 
 -- =============================================
 -- SECTION 1: MASTER DATA & LOOKUPS
@@ -253,7 +249,7 @@ CREATE TABLE "EmailTemplates" (
 
 COMMENT ON TABLE "EmailTemplates" IS 'Template สำหรับส่ง Email';
 
--- 1.16 SupplierDocumentTypes (NEW in v6.1)
+-- 1.16 SupplierDocumentTypes
 CREATE TABLE "SupplierDocumentTypes" (
   "Id" BIGSERIAL PRIMARY KEY,
   "BusinessTypeId" SMALLINT NOT NULL REFERENCES "BusinessTypes"("Id"),
@@ -501,6 +497,7 @@ CREATE TABLE "SupplierContacts" (
   "FailedLoginAttempts" INT DEFAULT 0,
   "LockoutEnd" TIMESTAMP WITH TIME ZONE,
   "CanSubmitQuotation" BOOLEAN DEFAULT TRUE,
+  "CanReceiveNotification" BOOLEAN DEFAULT TRUE,
   "CanViewReports" BOOLEAN DEFAULT FALSE,
   "IsPrimaryContact" BOOLEAN DEFAULT FALSE,
   "ReceiveSMS" BOOLEAN DEFAULT FALSE,
@@ -586,7 +583,7 @@ CREATE TABLE "Rfqs" (
   "DeclineReason" TEXT,
   "RejectReason" TEXT,
   "Remarks" TEXT,
-  "PurchasingRemarks" TEXT,  -- NEW in v6.1
+  "PurchasingRemarks" TEXT,
   "CreatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   "CreatedBy" BIGINT REFERENCES "Users"("Id"),
   "UpdatedAt" TIMESTAMP,
@@ -660,7 +657,7 @@ CREATE TABLE "RfqRequiredFields" (
 
 COMMENT ON TABLE "RfqRequiredFields" IS 'กำหนดข้อมูลที่ Supplier ต้องระบุ';
 
--- 5.5 PurchasingDocuments (NEW in v6.1)
+-- 5.5 PurchasingDocuments
 CREATE TABLE "PurchasingDocuments" (
   "Id" BIGSERIAL PRIMARY KEY,
   "RfqId" BIGINT NOT NULL REFERENCES "Rfqs"("Id") ON DELETE CASCADE,
@@ -675,7 +672,7 @@ CREATE TABLE "PurchasingDocuments" (
 
 COMMENT ON TABLE "PurchasingDocuments" IS 'เอกสารเพิ่มเติมจาก Purchasing';
 
--- 5.6 RfqDeadlineHistory (NEW in v6.1)
+-- 5.6 RfqDeadlineHistory
 CREATE TABLE "RfqDeadlineHistory" (
   "Id" BIGSERIAL PRIMARY KEY,
   "RfqId" BIGINT NOT NULL REFERENCES "Rfqs"("Id") ON DELETE CASCADE,
@@ -732,7 +729,7 @@ CREATE TABLE "RfqActorTimeline" (
 COMMENT ON TABLE "RfqActorTimeline" IS 'Timeline การทำงานของแต่ละ Actor';
 
 -- =============================================
--- SECTION 7: QUOTATION MANAGEMENT (MODIFIED in v6.1)
+-- SECTION 7: QUOTATION MANAGEMENT
 -- =============================================
 
 -- 7.1 RfqInvitations
@@ -755,7 +752,7 @@ CREATE TABLE "RfqInvitations" (
   "RespondedUserAgent" TEXT,
   "RespondedDeviceInfo" TEXT,
   "AutoDeclinedAt" TIMESTAMP,
-  "IsManuallyAdded" BOOLEAN DEFAULT FALSE,  -- NEW in v6.1
+  "IsManuallyAdded" BOOLEAN DEFAULT FALSE,
   "CreatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   "UpdatedAt" TIMESTAMP,
   
@@ -784,26 +781,26 @@ CREATE TABLE "RfqInvitationHistory" (
 
 COMMENT ON TABLE "RfqInvitationHistory" IS 'ประวัติการเปลี่ยนการตอบรับคำเชิญ';
 
--- 7.3 QuotationItems (MODIFIED in v6.1 - No more Quotations table)
+-- 7.3 QuotationItems
 CREATE TABLE "QuotationItems" (
   "Id" BIGSERIAL PRIMARY KEY,
-  "RfqId" BIGINT NOT NULL REFERENCES "Rfqs"("Id"),  -- NEW in v6.1
-  "SupplierId" BIGINT NOT NULL REFERENCES "Suppliers"("Id"),  -- NEW in v6.1
+  "RfqId" BIGINT NOT NULL REFERENCES "Rfqs"("Id"),
+  "SupplierId" BIGINT NOT NULL REFERENCES "Suppliers"("Id"),
   "RfqItemId" BIGINT NOT NULL REFERENCES "RfqItems"("Id"),
   "UnitPrice" DECIMAL(18,4) NOT NULL,
   "Quantity" DECIMAL(12,4) NOT NULL,
   "TotalPrice" DECIMAL(18,4) NOT NULL,
   "ConvertedUnitPrice" DECIMAL(18,4),
   "ConvertedTotalPrice" DECIMAL(18,4),
-  "CurrencyId" BIGINT REFERENCES "Currencies"("Id"),  -- NEW in v6.1
-  "IncotermId" BIGINT REFERENCES "Incoterms"("Id"),  -- NEW in v6.1
+  "CurrencyId" BIGINT REFERENCES "Currencies"("Id"),
+  "IncotermId" BIGINT REFERENCES "Incoterms"("Id"),
   "MinOrderQty" INT,
   "DeliveryDays" INT,
   "CreditDays" INT,
   "WarrantyDays" INT,
   "Remarks" TEXT,
-  "SubmittedAt" TIMESTAMP,  -- NEW in v6.1
-  "SubmittedByContactId" BIGINT REFERENCES "SupplierContacts"("Id"),  -- NEW in v6.1
+  "SubmittedAt" TIMESTAMP,
+  "SubmittedByContactId" BIGINT REFERENCES "SupplierContacts"("Id"),
   "CreatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   
   CONSTRAINT "uk_quotation_item" UNIQUE("RfqId", "SupplierId", "RfqItemId")
@@ -811,7 +808,7 @@ CREATE TABLE "QuotationItems" (
 
 COMMENT ON TABLE "QuotationItems" IS 'รายการในใบเสนอราคา (ไม่มี Quotations table แล้ว)';
 
--- 7.4 RfqItemWinners (NEW in v6.1)
+-- 7.4 RfqItemWinners
 CREATE TABLE "RfqItemWinners" (
   "Id" BIGSERIAL PRIMARY KEY,
   "RfqId" BIGINT NOT NULL REFERENCES "Rfqs"("Id"),
@@ -1174,7 +1171,7 @@ CREATE INDEX "idx_suppliers_active" ON "Suppliers"("IsActive") WHERE "IsActive" 
 CREATE INDEX "idx_supplier_contacts_supplier" ON "SupplierContacts"("SupplierId");
 CREATE INDEX "idx_supplier_categories_supplier" ON "SupplierCategories"("SupplierId");
 
--- Quotation Indexes (Modified for v6.1)
+-- Quotation Indexes
 CREATE INDEX "idx_rfq_invitations_rfq" ON "RfqInvitations"("RfqId");
 CREATE INDEX "idx_rfq_invitations_supplier" ON "RfqInvitations"("SupplierId");
 CREATE INDEX "idx_quotation_items_rfq" ON "QuotationItems"("RfqId");
@@ -1204,210 +1201,14 @@ CREATE INDEX "idx_notification_queue_pending" ON "NotificationQueue"("Status") W
 CREATE INDEX "idx_exchange_rates_active" ON "ExchangeRates"("FromCurrencyId", "ToCurrencyId", "EffectiveDate") 
   WHERE "IsActive" = true;
 
--- =============================================
--- TRIGGERS
--- =============================================
-
--- Trigger to update IsOverdue flag
-CREATE OR REPLACE FUNCTION update_rfq_overdue() RETURNS TRIGGER AS $$
-BEGIN
-  IF NEW."RequiredQuotationDate" < CURRENT_TIMESTAMP THEN
-    NEW."IsOverdue" = TRUE;
-  ELSE
-    NEW."IsOverdue" = FALSE;
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER "trg_update_rfq_overdue"
-BEFORE INSERT OR UPDATE ON "Rfqs"
-FOR EACH ROW
-EXECUTE FUNCTION update_rfq_overdue();
-
--- Trigger to calculate ProcessingDays
-CREATE OR REPLACE FUNCTION calculate_processing_days() RETURNS TRIGGER AS $$
-BEGIN
-  IF NEW."UpdatedAt" IS NOT NULL AND NEW."CreatedAt" IS NOT NULL THEN
-    NEW."ProcessingDays" = EXTRACT(DAY FROM (NEW."UpdatedAt" - NEW."CreatedAt"));
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER "trg_calculate_processing_days"
-BEFORE UPDATE ON "Rfqs"
-FOR EACH ROW
-EXECUTE FUNCTION calculate_processing_days();
-
--- Trigger to update Timeline ProcessingDays
-CREATE OR REPLACE FUNCTION update_timeline_processing_days() RETURNS TRIGGER AS $$
-BEGIN
-  IF NEW."ActionAt" IS NOT NULL AND NEW."ReceivedAt" IS NOT NULL THEN
-    -- Calculate processing days
-    NEW."IsOntime" = (
-      EXTRACT(DAY FROM (NEW."ActionAt" - NEW."ReceivedAt")) <= 
-      (SELECT "ResponseTimeDays" FROM "RoleResponseTimes" WHERE "RoleCode" = NEW."ActorRole")
-    );
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER "trg_update_timeline_processing"
-BEFORE INSERT OR UPDATE ON "RfqActorTimeline"
-FOR EACH ROW
-EXECUTE FUNCTION update_timeline_processing_days();
-
--- Trigger to auto-assign ApproverLevel from Position
-CREATE OR REPLACE FUNCTION assign_approver_level_from_position() RETURNS TRIGGER AS $$
-BEGIN
-  IF NEW."PositionId" IS NOT NULL AND NEW."ApproverLevel" IS NULL THEN
-    SELECT "DefaultApproverLevel" INTO NEW."ApproverLevel"
-    FROM "Positions" 
-    WHERE "Id" = NEW."PositionId";
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER "trg_auto_assign_approver_level"
-BEFORE INSERT OR UPDATE ON "UserCompanyRoles"
-FOR EACH ROW
-EXECUTE FUNCTION assign_approver_level_from_position();
-
--- =============================================
--- VIEWS
--- =============================================
-
--- View to replace Quotations table
-CREATE OR REPLACE VIEW "vw_quotation_summary" AS
-SELECT 
-  qi."RfqId",
-  qi."SupplierId",
-  s."CompanyNameTh",
-  COUNT(DISTINCT qi."RfqItemId") AS "ItemsQuoted",
-  SUM(qi."TotalPrice") AS "TotalAmount",
-  MIN(qi."SubmittedAt") AS "FirstSubmittedAt",
-  MAX(qi."SubmittedAt") AS "LastSubmittedAt"
-FROM "QuotationItems" qi
-JOIN "Suppliers" s ON s."Id" = qi."SupplierId"
-GROUP BY qi."RfqId", qi."SupplierId", s."CompanyNameTh";
-
--- View for RFQ winners summary
-CREATE OR REPLACE VIEW "vw_rfq_winners_summary" AS
-SELECT 
-  r."RfqNumber",
-  ri."ItemSequence",
-  ri."ItemDescription",
-  s."CompanyNameTh" AS "WinnerSupplier",
-  qi."UnitPrice",
-  c."CurrencyCode",
-  w."SelectionReason",
-  w."IsSystemMatch"
-FROM "RfqItemWinners" w
-JOIN "Rfqs" r ON r."Id" = w."RfqId"
-JOIN "RfqItems" ri ON ri."Id" = w."RfqItemId"
-JOIN "Suppliers" s ON s."Id" = w."SupplierId"
-JOIN "QuotationItems" qi ON qi."Id" = w."QuotationItemId"
-LEFT JOIN "Currencies" c ON c."Id" = qi."CurrencyId"
-ORDER BY r."Id", ri."ItemSequence";
-
--- View for Supplier invitation status
-CREATE OR REPLACE VIEW "vw_supplier_invitation_status" AS
-SELECT 
-  ri."RfqId",
-  r."RfqNumber",
-  ri."SupplierId",
-  s."CompanyNameTh",
-  ri."Decision",
-  ri."ResponseStatus",
-  CASE 
-    WHEN ri."ResponseStatus" = 'NO_RESPONSE' THEN 'ยังไม่ตอบรับ'
-    WHEN ri."Decision" = 'NOT_PARTICIPATING' THEN 'ตอบรับแต่ปฏิเสธ'
-    WHEN ri."Decision" = 'PARTICIPATING' 
-      AND EXISTS (SELECT 1 FROM "QuotationItems" qi 
-                  WHERE qi."RfqId" = ri."RfqId" 
-                  AND qi."SupplierId" = ri."SupplierId") THEN 'เสนอราคาแล้ว'
-    WHEN ri."Decision" = 'PARTICIPATING' THEN 'เข้าร่วม (ยังไม่เสนอราคา)'
-    WHEN ri."Decision" = 'AUTO_DECLINED' THEN 'ระบบปฏิเสธอัตโนมัติ'
-  END AS "StatusText"
-FROM "RfqInvitations" ri
-JOIN "Suppliers" s ON s."Id" = ri."SupplierId"
-JOIN "Rfqs" r ON r."Id" = ri."RfqId";
-
--- =============================================
--- MASTER DATA INSERT
--- =============================================
-
--- Insert BusinessTypes
-INSERT INTO "BusinessTypes" ("Id", "Code", "NameTh", "NameEn", "SortOrder") VALUES
-(1, 'INDIVIDUAL', 'บุคคลธรรมดา', 'Individual', 1),
-(2, 'JURISTIC', 'นิติบุคคล', 'Juristic Person', 2)
-ON CONFLICT DO NOTHING;
-
--- Insert JobTypes
-INSERT INTO "JobTypes" ("Id", "Code", "NameTh", "NameEn", "PriceComparisonRule", "SortOrder") VALUES
-(1, 'BUY', 'ซื้อ', 'Buy', 'MIN', 1),
-(2, 'SELL', 'ขาย', 'Sell', 'MAX', 2)
-ON CONFLICT DO NOTHING;
-
--- Insert Roles
-INSERT INTO "Roles" ("RoleCode", "RoleName", "RoleNameTh") VALUES
-('SUPER_ADMIN', 'Super Administrator', 'ผู้ดูแลระบบสูงสุด'),
-('ADMIN', 'Administrator', 'ผู้ดูแลระบบ'),
-('REQUESTER', 'Requester', 'ผู้ขอซื้อ'),
-('APPROVER', 'Approver', 'ผู้อนุมัติ'),
-('PURCHASING', 'Purchasing', 'จัดซื้อ'),
-('PURCHASING_APPROVER', 'Purchasing Approver', 'ผู้อนุมัติจัดซื้อ'),
-('SUPPLIER', 'Supplier', 'ผู้ขาย'),
-('MANAGING_DIRECTOR', 'Managing Director', 'ผู้บริหาร')
-ON CONFLICT DO NOTHING;
-
--- Insert RoleResponseTimes (SLA)
-INSERT INTO "RoleResponseTimes" ("RoleCode", "ResponseTimeDays") VALUES
-('REQUESTER', 1),
-('APPROVER', 2),
-('PURCHASING', 2),
-('PURCHASING_APPROVER', 1),
-('SUPPLIER', 3)
-ON CONFLICT DO NOTHING;
-
--- Insert SupplierDocumentTypes
-INSERT INTO "SupplierDocumentTypes" 
-  ("BusinessTypeId", "DocumentCode", "DocumentNameTh", "DocumentNameEn", "IsRequired", "SortOrder") 
-VALUES
-  -- นิติบุคคล (BusinessTypeId = 2)
-  (2, 'COMPANY_CERT', 'หนังสือรับรอง', 'Company Registration Certificate', TRUE, 1),
-  (2, 'PP20', 'ภ.พ.20', 'VAT Registration (Por Por 20)', TRUE, 2),
-  (2, 'FINANCIAL_REPORT', 'รายงานทางการเงิน', 'Financial Statement', TRUE, 3),
-  (2, 'COMPANY_PROFILE', 'แนะนำบริษัท', 'Company Profile', TRUE, 4),
-  (2, 'NDA', 'หนังสือสัญญารักษาความลับ', 'Non-Disclosure Agreement', TRUE, 5),
-  (2, 'OTHER', 'อื่นๆ', 'Other', FALSE, 6),
-  
-  -- บุคคลธรรมดา (BusinessTypeId = 1)
-  (1, 'ID_CARD', 'สำเนาบัตรประชาชน', 'ID Card Copy', TRUE, 1),
-  (1, 'NDA', 'หนังสือสัญญารักษาความลับ', 'Non-Disclosure Agreement', TRUE, 2),
-  (1, 'OTHER', 'อื่นๆ', 'Other', FALSE, 3)
-ON CONFLICT ("BusinessTypeId", "DocumentCode") DO NOTHING;
-
--- Insert common currencies
-INSERT INTO "Currencies" ("CurrencyCode", "CurrencyName", "CurrencySymbol", "DecimalPlaces") VALUES
-('THB', 'Thai Baht', '฿', 2),
-('USD', 'US Dollar', '$', 2),
-('EUR', 'Euro', '€', 2),
-('GBP', 'British Pound', '£', 2),
-('JPY', 'Japanese Yen', '¥', 0),
-('CNY', 'Chinese Yuan', '¥', 2)
-ON CONFLICT DO NOTHING;
+-- Dashboard Performance Indexes
+CREATE INDEX "idx_rfqs_dashboard" ON "Rfqs"("Status", "CompanyId", "CurrentActorId");
+CREATE INDEX "idx_rfqs_date_range" ON "Rfqs"("CreatedAt", "Status");
+CREATE INDEX "idx_notifications_unread" ON "Notifications"("UserId", "IsRead") WHERE "IsRead" = false;
 
 -- =============================================
 -- END OF DATABASE SCHEMA
 -- Version: 6.1 (Production Ready)
 -- Total Tables: 66
--- Changes from v6.0:
--- ✅ Removed Quotations table
--- ✅ Added 4 new tables
--- ✅ Modified 3 existing tables
--- ✅ Added performance indexes and views
+-- Total Indexes: 35
 -- =============================================
