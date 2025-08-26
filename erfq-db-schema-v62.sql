@@ -1,19 +1,6 @@
 -- =============================================
 -- E-RFQ SYSTEM COMPLETE DATABASE SCHEMA v6.2
 -- Database: PostgreSQL 14+
--- Type: Tables & Indexes Only (No Functions, No Views, No Seeds, No Master Data)
--- Last Updated: January 2025
--- Total Tables: 68 (Added QuotationDocuments, RfqItemWinnerOverrides)
--- Changes from v6.1:
---   - Added QuotationDocuments table
---   - Added RfqItemWinnerOverrides table  
---   - Added PreferredLanguage to Users table
---   - Added Complete Performance Indexes
--- =============================================
-
--- Drop all tables if exists (for clean installation)
-DROP SCHEMA IF EXISTS public CASCADE;
-CREATE SCHEMA public;
 
 -- =============================================
 -- SECTION 1: MASTER DATA & LOOKUPS
