@@ -75,10 +75,10 @@ COMMENT ON COLUMN "JobTypes"."PriceComparisonRule" IS 'MIN=เลือกรา
 CREATE TABLE "Roles" (
   "Id" BIGSERIAL PRIMARY KEY,
   "RoleCode" VARCHAR(30) UNIQUE NOT NULL,
-  "RoleName" VARCHAR(100) NOT NULL,
-  "RoleNameTh" VARCHAR(100),
+  "RoleNameTh" VARCHAR(100) NOT NULL,
   "RoleNameEn" VARCHAR(100),
   "Description" TEXT,
+  "IsSystemRole" BOOLEAN DEFAULT FALSE,
   "IsActive" BOOLEAN DEFAULT TRUE,
   "CreatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   

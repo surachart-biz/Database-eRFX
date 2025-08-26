@@ -198,13 +198,13 @@ ON CONFLICT ("RoleId", "PermissionId") DO NOTHING;
 -- SECTION 8: ROLE RESPONSE TIMES (SLA)
 -- =============================================
 
-INSERT INTO "RoleResponseTimes" ("RoleType", "ResponseTimeDays", "Description", "IsActive") VALUES
+INSERT INTO "RoleResponseTimes" ("RoleCode", "ResponseTimeDays", "Description", "IsActive") VALUES
 ('REQUESTER', 1, 'ระยะเวลาที่ REQUESTER ต้องดำเนินการ', TRUE),
 ('APPROVER', 2, 'ระยะเวลาที่ APPROVER ต้องอนุมัติ', TRUE),
 ('PURCHASING', 2, 'ระยะเวลาที่ PURCHASING ต้องดำเนินการ', TRUE),
 ('PURCHASING_APPROVER', 1, 'ระยะเวลาที่ PURCHASING_APPROVER ต้องอนุมัติ', TRUE),
 ('SUPPLIER', 3, 'ระยะเวลาที่ SUPPLIER ต้องเสนอราคา', TRUE)
-ON CONFLICT ("RoleType") DO NOTHING;
+ON CONFLICT ("RoleCode") DO NOTHING;
 
 -- =============================================
 -- SECTION 9: CATEGORIES (หมวดหมู่สินค้า)
@@ -595,12 +595,6 @@ DO $$
 BEGIN
   RAISE NOTICE '=========================================';
   RAISE NOTICE 'Master Data v6.2 Loading Complete';
-  RAISE NOTICE '=========================================';
-  RAISE NOTICE 'Updates from v6.1:';
-  RAISE NOTICE '- JobTypes: Added BOTH option (3 total)';
-  RAISE NOTICE '- Permissions: Added Thai names, removed unused';
-  RAISE NOTICE '- Notifications: Updated to match actual UI';
-  RAISE NOTICE '- Subcategories: Added IsUseSerialNumber field';
   RAISE NOTICE '=========================================';
   RAISE NOTICE 'Total Records:';
   RAISE NOTICE 'Currencies: 10';
