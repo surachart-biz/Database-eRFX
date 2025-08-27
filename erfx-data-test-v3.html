@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>e-RFX Data Import Templates v3.2</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .version-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        
+        .tabs {
+            display: flex;
+            background: #f5f7fa;
+            border-bottom: 2px solid #e1e8ed;
+            overflow-x: auto;
+            padding: 0 10px;
+        }
+        
+        .tab {
+            padding: 15px 25px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 14px;
+            font-weight: 500;
+            color: #5a6c7d;
+            white-space: nowrap;
+            transition: all 0.3s;
+            position: relative;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .tab:hover {
+            background: white;
+            color: #667eea;
+        }
+        
+        .tab.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .tab-content {
+            display: none;
+            padding: 30px;
+            animation: fadeIn 0.3s;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .section-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+        }
+        
+        .section-title {
+            font-size: 1.8em;
+            margin-bottom: 8px;
+        }
+        
+        .section-desc {
+            opacity: 0.95;
+            font-size: 1em;
+        }
+        
+        .info-box {
+            background: #f0f9ff;
+            border-left: 4px solid #3b82f6;
+            padding: 20px;
+            margin-bottom: 25px;
+            border-radius: 8px;
+        }
+        
+        .info-box h3 {
+            color: #1e40af;
+            margin-bottom: 12px;
+            font-size: 1.2em;
+        }
+        
+        .info-box ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .info-box li {
+            padding: 5px 0;
+            color: #334155;
+        }
+        
+        .info-box li strong {
+            color: #1e40af;
+            font-weight: 600;
+        }
+        
+        .warning-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 20px;
+            margin-bottom: 25px;
+            border-radius: 8px;
+        }
+        
+        .warning-box h3 {
+            color: #92400e;
+            margin-bottom: 12px;
+        }
+        
+        .success-box {
+            background: #d1fae5;
+            border-left: 4px solid #10b981;
+            padding: 20px;
+            margin-bottom: 25px;
+            border-radius: 8px;
+        }
+        
+        .success-box h3 {
+            color: #065f46;
+            margin-bottom: 12px;
+        }
+        
+        .reference-box {
+            background: #f3f4f6;
+            border: 2px solid #d1d5db;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 10px;
+        }
+        
+        .reference-box h3 {
+            color: #374151;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-bottom: 30px;
+            font-size: 14px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px;
+            text-align: left;
+            font-weight: 500;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #f3f4f6;
+            background: white;
+        }
+        
+        tr:last-child td {
+            border-bottom: none;
+        }
+        
+        tr:hover td {
+            background: #f9fafb;
+        }
+        
+        .field-name {
+            font-weight: 600;
+            color: #1f2937;
+            font-size: 14px;
+        }
+        
+        .field-desc {
+            color: #6b7280;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        
+        .required {
+            color: #ef4444;
+            font-weight: 600;
+        }
+        
+        .optional {
+            color: #9ca3af;
+            font-style: italic;
+        }
+        
+        .auto-gen {
+            color: #3b82f6;
+            font-weight: 500;
+            background: #eff6ff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .example {
+            color: #059669;
+            font-family: 'Courier New', monospace;
+            background: #ecfdf5;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        
+        .constraints {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-left: 8px;
+        }
+        
+        .badge-new {
+            background: #10b981;
+            color: white;
+        }
+        
+        .badge-important {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .badge-auto {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .reference-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .ref-item {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            transition: all 0.2s;
+        }
+        
+        .ref-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .ref-code {
+            font-weight: 700;
+            color: #667eea;
+            font-size: 14px;
+        }
+        
+        .ref-name {
+            font-size: 13px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        
+        .export-section {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+        
+        .export-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            border: none;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s;
+        }
+        
+        .export-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.5);
+        }
+        
+        .import-order {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 10px;
+        }
+        
+        .import-order h3 {
+            color: #92400e;
+            margin-bottom: 15px;
+        }
+        
+        .import-order ol {
+            margin-left: 20px;
+            color: #92400e;
+        }
+        
+        .import-order li {
+            padding: 5px 0;
+        }
+        
+        @media print {
+            .tabs, .export-section { display: none; }
+            .tab-content { display: block !important; page-break-after: always; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 e-RFX System - Complete Data Test Templates</h1>
+            <p class="subtitle">Excel Templates สำหรับ Import ข้อมูลเริ่มต้นระบบ</p>
+            <span class="version-badge">Version 3.2 - Updated</span>
+        </header>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('companies')">1. Companies</button>
+            <button class="tab" onclick="showTab('departments')">2. Departments</button>
+            <button class="tab" onclick="showTab('users')">3. Users</button>
+            <button class="tab" onclick="showTab('user-roles')">4. User Roles</button>
+            <button class="tab" onclick="showTab('user-categories')">5. User Categories</button>
+            <button class="tab" onclick="showTab('suppliers')">6. Suppliers</button>
+            <button class="tab" onclick="showTab('supplier-contacts')">7. Supplier Contacts</button>
+            <button class="tab" onclick="showTab('supplier-categories')">8. Supplier Categories</button>
+            <button class="tab" onclick="showTab('custom-categories')">9. Categories Setup</button>
+        </div>
+        
+        <!-- 1. Companies -->
+        <div id="companies" class="tab-content active">
+            <div class="section-header">
+                <h2 class="section-title">1. Companies - ข้อมูลบริษัท</h2>
+                <p class="section-desc">บริษัทในระบบ e-RFX (รองรับ Multi-Company) - ระบบจะ generate Id อัตโนมัติ</p>
+            </div>
+            
+            <div class="info-box">
+                <h3>📌 วิธีการกรอกข้อมูล</h3>
+                <ul>
+                    <li><strong>CompanyCode:</strong> รหัสบริษัทภายใน ห้ามซ้ำ (ใช้อ้างอิงในตารางอื่น)</li>
+                    <li><strong>ShortNameEn:</strong> ชื่อย่อ 3-10 ตัว สำหรับสร้างเลข RFQ → ACME-25-01-0001</li>
+                    <li><strong>BusinessType:</strong> INDIVIDUAL = บุคคลธรรมดา, JURISTIC = นิติบุคคล</li>
+                    <li><strong>Country:</strong> ใช้รหัส 2 ตัว (ดูรายการด้านล่าง)</li>
+                    <li><strong>DefaultCurrency:</strong> ใช้รหัส 3 ตัว (ดูรายการด้านล่าง)</li>
+                </ul>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th width="20%">Field Name</th>
+                        <th width="30%">คำอธิบาย</th>
+                        <th width="12%">Required</th>
+                        <th width="20%">ตัวอย่าง</th>
+                        <th width="18%">ข้อจำกัด</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="field-name">CompanyCode</td>
+                        <td class="field-desc">รหัสบริษัท (ใช้อ้างอิง)</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">ACME001</td>
+                        <td class="constraints">Unique, Max 20</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">CompanyNameTh</td>
+                        <td class="field-desc">ชื่อบริษัทภาษาไทย</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">บริษัท เอซีเอ็มอี จำกัด</td>
+                        <td class="constraints">Max 150</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">CompanyNameEn</td>
+                        <td class="field-desc">ชื่อบริษัทภาษาอังกฤษ</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">ACME Company Limited</td>
+                        <td class="constraints">Max 150</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">ShortNameEn <span class="badge badge-important">RFQ</span></td>
+                        <td class="field-desc">ชื่อย่อสำหรับเลข RFQ</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">ACME</td>
+                        <td class="constraints">Unique, Max 10</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">TaxId</td>
+                        <td class="field-desc">เลขประจำตัวผู้เสียภาษี</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">0105500000001</td>
+                        <td class="constraints">Unique, Max 20</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">Country</td>
+                        <td class="field-desc">รหัสประเทศ (2 ตัว)</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">TH</td>
+                        <td class="constraints">ดูรายการด้านล่าง</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">DefaultCurrency</td>
+                        <td class="field-desc">สกุลเงินหลัก (3 ตัว)</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">THB</td>
+                        <td class="constraints">ดูรายการด้านล่าง</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">BusinessType</td>
+                        <td class="field-desc">ประเภทธุรกิจ</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">JURISTIC</td>
+                        <td class="constraints">INDIVIDUAL/JURISTIC</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">RegisteredCapital</td>
+                        <td class="field-desc">ทุนจดทะเบียน</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">10000000.00</td>
+                        <td class="constraints">Decimal(15,2)</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">RegisteredCapitalCurrency</td>
+                        <td class="field-desc">สกุลเงินทุนจดทะเบียน</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">THB</td>
+                        <td class="constraints">3 chars currency</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">Email</td>
+                        <td class="field-desc">อีเมลบริษัท</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">info@acme.co.th</td>
+                        <td class="constraints">Valid email</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div class="reference-box">
+                <h3>📍 Available Countries (รหัสประเทศที่ใช้ได้)</h3>
+                <div class="reference-grid">
+                    <div class="ref-item"><span class="ref-code">TH</span><span class="ref-name"> - Thailand (ไทย)</span></div>
+                    <div class="ref-item"><span class="ref-code">US</span><span class="ref-name"> - United States</span></div>
+                    <div class="ref-item"><span class="ref-code">GB</span><span class="ref-name"> - United Kingdom</span></div>
+                    <div class="ref-item"><span class="ref-code">JP</span><span class="ref-name"> - Japan (ญี่ปุ่น)</span></div>
+                    <div class="ref-item"><span class="ref-code">CN</span><span class="ref-name"> - China (จีน)</span></div>
+                    <div class="ref-item"><span class="ref-code">SG</span><span class="ref-name"> - Singapore</span></div>
+                    <div class="ref-item"><span class="ref-code">MY</span><span class="ref-name"> - Malaysia</span></div>
+                    <div class="ref-item"><span class="ref-code">AU</span><span class="ref-name"> - Australia</span></div>
+                    <div class="ref-item"><span class="ref-code">HK</span><span class="ref-name"> - Hong Kong</span></div>
+                    <div class="ref-item"><span class="ref-code">VN</span><span class="ref-name"> - Vietnam</span></div>
+                </div>
+            </div>
+            
+            <div class="reference-box">
+                <h3>💱 Available Currencies (สกุลเงินที่ใช้ได้)</h3>
+                <div class="reference-grid">
+                    <div class="ref-item"><span class="ref-code">THB</span><span class="ref-name"> - Thai Baht (฿)</span></div>
+                    <div class="ref-item"><span class="ref-code">USD</span><span class="ref-name"> - US Dollar ($)</span></div>
+                    <div class="ref-item"><span class="ref-code">EUR</span><span class="ref-name"> - Euro (€)</span></div>
+                    <div class="ref-item"><span class="ref-code">GBP</span><span class="ref-name"> - British Pound (£)</span></div>
+                    <div class="ref-item"><span class="ref-code">JPY</span><span class="ref-name"> - Japanese Yen (¥)</span></div>
+                    <div class="ref-item"><span class="ref-code">CNY</span><span class="ref-name"> - Chinese Yuan</span></div>
+                    <div class="ref-item"><span class="ref-code">SGD</span><span class="ref-name"> - Singapore Dollar</span></div>
+                    <div class="ref-item"><span class="ref-code">MYR</span><span class="ref-name"> - Malaysian Ringgit</span></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 2. Departments -->
+        <div id="departments" class="tab-content">
+            <div class="section-header">
+                <h2 class="section-title">2. Departments - แผนก</h2>
+                <p class="section-desc">แผนกภายในแต่ละบริษัท</p>
+            </div>
+            
+            <div class="info-box">
+                <h3>📌 วิธีการกรอกข้อมูล</h3>
+                <ul>
+                    <li><strong>CompanyCode:</strong> อ้างอิงถึง CompanyCode ที่สร้างในขั้นตอนที่ 1</li>
+                    <li><strong>DepartmentCode:</strong> รหัสแผนก ห้ามซ้ำภายในบริษัทเดียวกัน</li>
+                    <li><strong>CostCenter:</strong> รหัสศูนย์ต้นทุนสำหรับระบบบัญชี (Optional)</li>
+                </ul>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Field Name</th>
+                        <th>คำอธิบาย</th>
+                        <th>Required</th>
+                        <th>ตัวอย่าง</th>
+                        <th>ข้อจำกัด</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="field-name">CompanyCode</td>
+                        <td class="field-desc">รหัสบริษัท (จาก table 1)</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">ACME001</td>
+                        <td class="constraints">Must exist</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">DepartmentCode</td>
+                        <td class="field-desc">รหัสแผนก</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">IT</td>
+                        <td class="constraints">Unique per company</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">DepartmentNameTh</td>
+                        <td class="field-desc">ชื่อแผนกภาษาไทย</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">เทคโนโลยีสารสนเทศ</td>
+                        <td class="constraints">Max 200</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">DepartmentNameEn</td>
+                        <td class="field-desc">ชื่อแผนกภาษาอังกฤษ</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">Information Technology</td>
+                        <td class="constraints">Max 200</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">CostCenter</td>
+                        <td class="field-desc">รหัสศูนย์ต้นทุน</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">CC-IT</td>
+                        <td class="constraints">Max 50</td>
+                    </tr>
+
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 3. Users -->
+        <div id="users" class="tab-content">
+            <div class="section-header">
+                <h2 class="section-title">3. Users - พนักงาน</h2>
+                <p class="section-desc">ข้อมูลพนักงานภายในบริษัท (Internal Users)</p>
+            </div>
+            
+            <div class="info-box">
+                <h3>📌 วิธีการกรอกข้อมูล</h3>
+                <ul>
+                    <li><strong>Email:</strong> ใช้เป็น username สำหรับ login (ห้ามซ้ำในระบบ)</li>
+                    <li><strong>InitialPassword:</strong> รหัสผ่านเริ่มต้น (ระบบจะ hash เก็บ)</li>
+                    <li><strong>PreferredLanguage:</strong> th = ไทย, en = อังกฤษ</li>
+                </ul>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Field Name</th>
+                        <th>คำอธิบาย</th>
+                        <th>Required</th>
+                        <th>ตัวอย่าง</th>
+                        <th>ข้อจำกัด</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="field-name">Email <span class="badge badge-important">Login</span></td>
+                        <td class="field-desc">อีเมล (username)</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">john@acme.co.th</td>
+                        <td class="constraints">Unique</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">InitialPassword</td>
+                        <td class="field-desc">รหัสผ่านเริ่มต้น</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">P@ssw0rd123</td>
+                        <td class="constraints">Min 8, complex</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">EmployeeCode</td>
+                        <td class="field-desc">รหัสพนักงาน</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">EMP001</td>
+                        <td class="constraints">Max 50</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">FirstNameTh</td>
+                        <td class="field-desc">ชื่อภาษาไทย</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">สมชาย</td>
+                        <td class="constraints">Max 100</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">LastNameTh</td>
+                        <td class="field-desc">นามสกุลภาษาไทย</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">ใจดี</td>
+                        <td class="constraints">Max 100</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">FirstNameEn</td>
+                        <td class="field-desc">ชื่อภาษาอังกฤษ</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">John</td>
+                        <td class="constraints">Max 100</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">LastNameEn</td>
+                        <td class="field-desc">นามสกุลภาษาอังกฤษ</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">Doe</td>
+                        <td class="constraints">Max 100</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">PhoneNumber</td>
+                        <td class="field-desc">เบอร์โทรศัพท์</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">02-123-4567</td>
+                        <td class="constraints">Max 20</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">MobileNumber</td>
+                        <td class="field-desc">เบอร์มือถือ</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">081-234-5678</td>
+                        <td class="constraints">Max 20</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">PreferredLanguage</td>
+                        <td class="field-desc">ภาษาที่ใช้</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">th</td>
+                        <td class="constraints">th or en</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 4. User Company Roles -->
+        <div id="user-roles" class="tab-content">
+            <div class="section-header">
+                <h2 class="section-title">4. User Company Roles - บทบาทของพนักงาน</h2>
+                <p class="section-desc">กำหนดบทบาทของพนักงานในแต่ละบริษัท</p>
+            </div>
+            
+            <div class="warning-box">
+                <h3>⚠️ Business Rules สำคัญ</h3>
+                <ul>
+                    <li>❌ REQUESTER + APPROVER = ไม่ได้</li>
+                    <li>❌ REQUESTER + PURCHASING = ไม่ได้</li>
+                    <li>✅ APPROVER + PURCHASING = ได้</li>
+                    <li>✅ PURCHASING สามารถเป็น Secondary Role = REQUESTER ได้</li>
+                    <li>✅ ADMIN สามารถเป็นได้ทุก Role</li>
+                </ul>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Field Name</th>
+                        <th>คำอธิบาย</th>
+                        <th>Required</th>
+                        <th>ตัวอย่าง</th>
+                        <th>ข้อจำกัด</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="field-name">UserEmail</td>
+                        <td class="field-desc">อีเมลพนักงาน</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">john@acme.co.th</td>
+                        <td class="constraints">Must exist</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">CompanyCode</td>
+                        <td class="field-desc">รหัสบริษัท</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">ACME001</td>
+                        <td class="constraints">Must exist</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">DepartmentCode</td>
+                        <td class="field-desc">รหัสแผนก</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">IT</td>
+                        <td class="constraints">Must exist</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">PrimaryRole</td>
+                        <td class="field-desc">บทบาทหลัก</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">REQUESTER</td>
+                        <td class="constraints">See roles below</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">SecondaryRole</td>
+                        <td class="field-desc">บทบาทรอง</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">NULL</td>
+                        <td class="constraints">Check rules</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">PositionCode</td>
+                        <td class="field-desc">รหัสตำแหน่ง</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">MGR</td>
+                        <td class="constraints">See positions</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">ApproverLevel</td>
+                        <td class="field-desc">ระดับการอนุมัติ</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">1</td>
+                        <td class="constraints">1-3</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">StartDate</td>
+                        <td class="field-desc">วันที่เริ่มต้น</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">2025-01-01</td>
+                        <td class="constraints">YYYY-MM-DD</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">EndDate</td>
+                        <td class="field-desc">วันที่สิ้นสุด</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">NULL</td>
+                        <td class="constraints">YYYY-MM-DD</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div class="reference-box">
+                <h3>🎭 Available Roles</h3>
+                <div class="reference-grid">
+                    <div class="ref-item"><span class="ref-code">ADMIN</span><span class="ref-name"> - ผู้ดูแลระบบ</span></div>
+                    <div class="ref-item"><span class="ref-code">REQUESTER</span><span class="ref-name"> - ผู้ขอซื้อ</span></div>
+                    <div class="ref-item"><span class="ref-code">APPROVER</span><span class="ref-name"> - ผู้อนุมัติ</span></div>
+                    <div class="ref-item"><span class="ref-code">PURCHASING</span><span class="ref-name"> - จัดซื้อ</span></div>
+                    <div class="ref-item"><span class="ref-code">PURCHASING_APPROVER</span><span class="ref-name"> - ผู้อนุมัติจัดซื้อ</span></div>
+                    <div class="ref-item"><span class="ref-code">MANAGING_DIRECTOR</span><span class="ref-name"> - ผู้บริหาร</span></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 5. User Category Bindings -->
+        <div id="user-categories" class="tab-content">
+            <div class="section-header">
+                <h2 class="section-title">5. User Category Bindings - หมวดหมู่ที่รับผิดชอบ</h2>
+                <p class="section-desc">กำหนดหมวดหมู่สินค้าที่ PURCHASING รับผิดชอบ</p>
+            </div>
+            
+            <div class="info-box">
+                <h3>📌 วิธีการกรอกข้อมูล</h3>
+                <ul>
+                    <li>ใช้สำหรับ PURCHASING role เท่านั้น</li>
+                    <li>ถ้าไม่ระบุ SubcategoryCode = รับผิดชอบทุก subcategory ในหมวดนั้น</li>
+                    <li>ระบบจะ auto-match เมื่อมี RFQ ใน category ที่รับผิดชอบ</li>
+                </ul>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Field Name</th>
+                        <th>คำอธิบาย</th>
+                        <th>Required</th>
+                        <th>ตัวอย่าง</th>
+                        <th>ข้อจำกัด</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="field-name">UserEmail</td>
+                        <td class="field-desc">อีเมล Purchasing</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">purchasing@acme.co.th</td>
+                        <td class="constraints">Must be PURCHASING</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">CompanyCode</td>
+                        <td class="field-desc">รหัสบริษัท</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">ACME001</td>
+                        <td class="constraints">Must exist</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">CategoryCode</td>
+                        <td class="field-desc">รหัสหมวดหมู่หลัก</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">IT</td>
+                        <td class="constraints">See categories</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">SubcategoryCode</td>
+                        <td class="field-desc">รหัสหมวดหมู่ย่อย</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">IT-HW-COM</td>
+                        <td class="constraints">Blank = all</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 6. Suppliers -->
+        <div id="suppliers" class="tab-content">
+            <div class="section-header">
+                <h2 class="section-title">6. Suppliers - ผู้ขาย/ผู้ให้บริการ</h2>
+                <p class="section-desc">ข้อมูล Supplier ที่ลงทะเบียนในระบบ (Import = Status COMPLETED)</p>
+            </div>
+            
+            <div class="success-box">
+                <h3>✅ หมายเหตุสำหรับ Import</h3>
+                <ul>
+                    <li>ข้อมูล Supplier ที่ import เข้ามาจะมี Status = <strong>COMPLETED</strong> อัตโนมัติ</li>
+                    <li>เนื่องจากเป็นข้อมูล Supplier ที่มีอยู่แล้วของลูกค้า</li>
+                    <li>Status PENDING ใช้สำหรับ Supplier ที่ลงทะเบียนใหม่ผ่านระบบเท่านั้น</li>
+                </ul>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Field Name</th>
+                        <th>คำอธิบาย</th>
+                        <th>Required</th>
+                        <th>ตัวอย่าง</th>
+                        <th>ข้อจำกัด</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="field-name">TaxId</td>
+                        <td class="field-desc">เลขผู้เสียภาษี</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">0105500000002</td>
+                        <td class="constraints">Unique</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">CompanyNameTh</td>
+                        <td class="field-desc">ชื่อบริษัทภาษาไทย</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">บจก. เอบีซี เทคโนโลยี</td>
+                        <td class="constraints">Max 200</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">CompanyNameEn</td>
+                        <td class="field-desc">ชื่อบริษัทภาษาอังกฤษ</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">ABC Technology Co., Ltd.</td>
+                        <td class="constraints">Max 200</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">BusinessType</td>
+                        <td class="field-desc">ประเภทธุรกิจ</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">JURISTIC</td>
+                        <td class="constraints">INDIVIDUAL/JURISTIC</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">JobType <span class="badge badge-new">3 Options</span></td>
+                        <td class="field-desc">ประเภทงาน</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">BOTH</td>
+                        <td class="constraints">BUY/SELL/BOTH</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">RegisteredCapital</td>
+                        <td class="field-desc">ทุนจดทะเบียน</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">1000000.00</td>
+                        <td class="constraints">Decimal(15,2)</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">RegisteredCapitalCurrency</td>
+                        <td class="field-desc">สกุลเงินทุน</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">THB</td>
+                        <td class="constraints">3 chars</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">DefaultCurrency</td>
+                        <td class="field-desc">สกุลเงินหลัก</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">THB</td>
+                        <td class="constraints">3 chars</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">Country</td>
+                        <td class="field-desc">รหัสประเทศ</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">TH</td>
+                        <td class="constraints">2 chars</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">CompanyEmail</td>
+                        <td class="field-desc">อีเมลบริษัท</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">info@abc-tech.co.th</td>
+                        <td class="constraints">Valid email</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 7. Supplier Contacts -->
+        <div id="supplier-contacts" class="tab-content">
+            <div class="section-header">
+                <h2 class="section-title">7. Supplier Contacts - ผู้ติดต่อของ Supplier</h2>
+                <p class="section-desc">บุคคลติดต่อของแต่ละ Supplier (สำหรับ login และรับการแจ้งเตือน)</p>
+            </div>
+            
+            <div class="info-box">
+                <h3>📌 วิธีการกรอกข้อมูล</h3>
+                <ul>
+                    <li><strong>Email:</strong> ใช้สำหรับ login เข้าระบบ</li>
+                    <li><strong>IsPrimaryContact:</strong> ผู้ติดต่อหลัก (1 คนต่อ Supplier)</li>
+                    <li><strong>Position:</strong> ตำแหน่งงานใน Supplier</li>
+                </ul>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Field Name</th>
+                        <th>คำอธิบาย</th>
+                        <th>Required</th>
+                        <th>ตัวอย่าง</th>
+                        <th>ข้อจำกัด</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="field-name">SupplierTaxId</td>
+                        <td class="field-desc">เลขผู้เสียภาษี Supplier</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">0105500000002</td>
+                        <td class="constraints">Must exist</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">FirstName</td>
+                        <td class="field-desc">ชื่อผู้ติดต่อ</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">สมศักดิ์</td>
+                        <td class="constraints">Max 100</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">LastName</td>
+                        <td class="field-desc">นามสกุลผู้ติดต่อ</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">จันทร์</td>
+                        <td class="constraints">Max 100</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">Position</td>
+                        <td class="field-desc">ตำแหน่งงาน</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">Sales Manager</td>
+                        <td class="constraints">Max 100</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">Email <span class="badge badge-important">Login</span></td>
+                        <td class="field-desc">อีเมล (for login)</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">sales@abc-tech.co.th</td>
+                        <td class="constraints">Unique per supplier</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">InitialPassword</td>
+                        <td class="field-desc">รหัสผ่านเริ่มต้น</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">Supp@123</td>
+                        <td class="constraints">Min 8</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">PhoneNumber</td>
+                        <td class="field-desc">เบอร์โทรศัพท์</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">02-987-6543</td>
+                        <td class="constraints">Max 20</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">MobileNumber</td>
+                        <td class="field-desc">เบอร์มือถือ</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">089-123-4567</td>
+                        <td class="constraints">Max 20</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">IsPrimaryContact</td>
+                        <td class="field-desc">เป็นผู้ติดต่อหลัก</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">TRUE</td>
+                        <td class="constraints">TRUE/FALSE</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">PreferredLanguage</td>
+                        <td class="field-desc">ภาษาที่ใช้</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">th</td>
+                        <td class="constraints">th or en</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 8. Supplier Categories -->
+        <div id="supplier-categories" class="tab-content">
+            <div class="section-header">
+                <h2 class="section-title">8. Supplier Categories - หมวดหมู่ที่ให้บริการ</h2>
+                <p class="section-desc">กำหนดหมวดหมู่สินค้า/บริการที่ Supplier แต่ละรายให้บริการ</p>
+            </div>
+            
+            <div class="info-box">
+                <h3>📌 วิธีการกรอกข้อมูล</h3>
+                <ul>
+                    <li>ใช้สำหรับ auto-match Supplier เมื่อมี RFQ ใหม่</li>
+                    <li>Supplier 1 ราย สามารถให้บริการได้หลาย Category</li>
+                    <li>ถ้าไม่ระบุ Subcategory = ให้บริการทุก subcategory ใน category นั้น</li>
+                </ul>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Field Name</th>
+                        <th>คำอธิบาย</th>
+                        <th>Required</th>
+                        <th>ตัวอย่าง</th>
+                        <th>ข้อจำกัด</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="field-name">SupplierTaxId</td>
+                        <td class="field-desc">เลขผู้เสียภาษี Supplier</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">0105500000002</td>
+                        <td class="constraints">Must exist</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">CategoryCode</td>
+                        <td class="field-desc">รหัสหมวดหมู่หลัก</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">IT</td>
+                        <td class="constraints">See categories</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">SubcategoryCode</td>
+                        <td class="field-desc">รหัสหมวดหมู่ย่อย</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">IT-HW-COM</td>
+                        <td class="constraints">Blank = all</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 9. Categories Setup -->
+        <div id="custom-categories" class="tab-content">
+            <div class="section-header">
+                <h2 class="section-title">9. Categories & Subcategories Setup</h2>
+                <p class="section-desc">หมวดหมู่และหมวดหมู่ย่อย - ระบบมี Standard Categories มาให้แล้ว</p>
+            </div>
+            
+            <div class="success-box">
+                <h3>✅ Standard Categories (12 หมวด)</h3>
+                <div class="reference-grid">
+                    <div class="ref-item"><span class="ref-code">IT</span><span class="ref-name"> - เทคโนโลยีสารสนเทศ</span></div>
+                    <div class="ref-item"><span class="ref-code">OFFICE</span><span class="ref-name"> - อุปกรณ์สำนักงาน</span></div>
+                    <div class="ref-item"><span class="ref-code">MRO</span><span class="ref-name"> - ซ่อมบำรุง</span></div>
+                    <div class="ref-item"><span class="ref-code">RAW_MAT</span><span class="ref-name"> - วัตถุดิบ</span></div>
+                    <div class="ref-item"><span class="ref-code">PACKAGING</span><span class="ref-name"> - บรรจุภัณฑ์</span></div>
+                    <div class="ref-item"><span class="ref-code">MARKETING</span><span class="ref-name"> - การตลาด</span></div>
+                    <div class="ref-item"><span class="ref-code">SERVICES</span><span class="ref-name"> - บริการ</span></div>
+                    <div class="ref-item"><span class="ref-code">CONSTRUCTION</span><span class="ref-name"> - ก่อสร้าง</span></div>
+                    <div class="ref-item"><span class="ref-code">TRANSPORT</span><span class="ref-name"> - ขนส่ง</span></div>
+                    <div class="ref-item"><span class="ref-code">SAFETY</span><span class="ref-name"> - ความปลอดภัย</span></div>
+                    <div class="ref-item"><span class="ref-code">UNIFORM</span><span class="ref-name"> - ชุดยูนิฟอร์ม</span></div>
+                    <div class="ref-item"><span class="ref-code">ELECTRICAL</span><span class="ref-name"> - ระบบไฟฟ้า</span></div>
+                </div>
+            </div>
+            
+            <h3 style="margin-top: 30px; color: #374151;">เพิ่ม Custom Categories (ถ้าต้องการ)</h3>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Field Name</th>
+                        <th>คำอธิบาย</th>
+                        <th>Required</th>
+                        <th>ตัวอย่าง</th>
+                        <th>ข้อจำกัด</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="field-name">CategoryCode</td>
+                        <td class="field-desc">รหัสหมวดหมู่</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">MEDICAL</td>
+                        <td class="constraints">Unique</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">CategoryNameTh</td>
+                        <td class="field-desc">ชื่อภาษาไทย</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">เวชภัณฑ์</td>
+                        <td class="constraints">Max 100</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">CategoryNameEn</td>
+                        <td class="field-desc">ชื่อภาษาอังกฤษ</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">Medical Supplies</td>
+                        <td class="constraints">Max 100</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <h3 style="margin-top: 30px; color: #374151;">เพิ่ม Subcategories</h3>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Field Name</th>
+                        <th>คำอธิบาย</th>
+                        <th>Required</th>
+                        <th>ตัวอย่าง</th>
+                        <th>ข้อจำกัด</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="field-name">CategoryCode</td>
+                        <td class="field-desc">รหัสหมวดหมู่หลัก</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">IT</td>
+                        <td class="constraints">Must exist</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">SubcategoryCode</td>
+                        <td class="field-desc">รหัสหมวดย่อย</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">IT-HW-COM</td>
+                        <td class="constraints">Unique per category</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">SubcategoryNameTh</td>
+                        <td class="field-desc">ชื่อภาษาไทย</td>
+                        <td><span class="required">✓ Required</span></td>
+                        <td class="example">คอมพิวเตอร์</td>
+                        <td class="constraints">Max 200</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">SubcategoryNameEn</td>
+                        <td class="field-desc">ชื่อภาษาอังกฤษ</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">Computers</td>
+                        <td class="constraints">Max 200</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">IsUseSerialNumber</td>
+                        <td class="field-desc">ใช้ Serial Number</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">TRUE</td>
+                        <td class="constraints">TRUE/FALSE</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">Duration</td>
+                        <td class="field-desc">จำนวนวัน (SLA)</td>
+                        <td><span class="optional">Optional</span></td>
+                        <td class="example">7</td>
+                        <td class="constraints">Default 7</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="import-order">
+        <h3>⚠️ ลำดับการ Import ที่ต้องทำตามขั้นตอน</h3>
+        <ol>
+            <li><strong>Companies</strong> - สร้างข้อมูลบริษัทก่อน</li>
+            <li><strong>Departments</strong> - สร้างแผนก (อ้างอิง CompanyCode)</li>
+            <li><strong>Users</strong> - สร้างพนักงาน</li>
+            <li><strong>User Company Roles</strong> - กำหนดบทบาท (อ้างอิง Email + CompanyCode)</li>
+            <li><strong>User Category Bindings</strong> - กำหนด Category ที่รับผิดชอบ</li>
+            <li><strong>Suppliers</strong> - สร้างข้อมูล Supplier</li>
+            <li><strong>Supplier Contacts</strong> - สร้างผู้ติดต่อ (อ้างอิง SupplierTaxId)</li>
+            <li><strong>Supplier Categories</strong> - กำหนด Categories ที่ให้บริการ</li>
+            <li><strong>Custom Categories</strong> - เพิ่มหมวดหมู่เพิ่มเติม (ถ้าต้องการ)</li>
+        </ol>
+    </div>
+    
+    <div class="export-section">
+        <button class="export-btn" onclick="exportToExcel()">
+            📥 Export to Excel
+        </button>
+    </div>
+    
+    <script>
+        function showTab(tabName) {
+            const tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            const buttons = document.querySelectorAll('.tab');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+        
+        function exportToExcel() {
+            // สร้าง workbook format ที่ Excel รู้จัก
+            let excelContent = `
+                <html xmlns:o="urn:schemas-microsoft-com:office:office"
+                      xmlns:x="urn:schemas-microsoft-com:office:excel"
+                      xmlns="http://www.w3.org/TR/REC-html40">
+                <head>
+                    <meta charset="UTF-8">
+                    <style>
+                        table { border-collapse: collapse; width: 100%; margin-bottom: 30px; }
+                        th { background-color: #667eea; color: white; font-weight: bold; padding: 10px; border: 1px solid #000; text-align: left; }
+                        td { border: 1px solid #ccc; padding: 8px; }
+                        .sheet-title { font-size: 18px; font-weight: bold; color: #667eea; margin: 20px 0 10px 0; }
+                        .sheet-desc { font-size: 14px; color: #666; margin-bottom: 15px; }
+                        .page-break { page-break-before: always; }
+                    </style>
+                </head>
+                <body>`;
+            
+            // Sheet 1: Companies
+            const companiesContent = document.getElementById('companies');
+            excelContent += `
+                <div>
+                    <div class="sheet-title">Sheet 1: Companies - ข้อมูลบริษัท</div>
+                    <div class="sheet-desc">กรุณากรอกข้อมูลบริษัท (ระบบจะ generate Id อัตโนมัติ)</div>
+                    ${companiesContent.querySelector('table').outerHTML}
+                </div>`;
+            
+            // Sheet 2: Departments
+            const departmentsContent = document.getElementById('departments');
+            excelContent += `
+                <div class="page-break">
+                    <div class="sheet-title">Sheet 2: Departments - แผนก</div>
+                    <div class="sheet-desc">กรุณากรอกข้อมูลแผนก (อ้างอิง CompanyCode จาก Sheet 1)</div>
+                    ${departmentsContent.querySelector('table').outerHTML}
+                </div>`;
+            
+            // Sheet 3: Users
+            const usersContent = document.getElementById('users');
+            excelContent += `
+                <div class="page-break">
+                    <div class="sheet-title">Sheet 3: Users - พนักงาน</div>
+                    <div class="sheet-desc">กรุณากรอกข้อมูลพนักงาน (Email = username สำหรับ login)</div>
+                    ${usersContent.querySelector('table').outerHTML}
+                </div>`;
+            
+            // Sheet 4: User Roles
+            const rolesContent = document.getElementById('user-roles');
+            excelContent += `
+                <div class="page-break">
+                    <div class="sheet-title">Sheet 4: User Company Roles - บทบาท</div>
+                    <div class="sheet-desc">กำหนดบทบาท (อ้างอิง Email จาก Sheet 3)</div>
+                    ${rolesContent.querySelector('table').outerHTML}
+                    <br>
+                    <strong>Available Roles:</strong> ADMIN, REQUESTER, APPROVER, PURCHASING, PURCHASING_APPROVER, MANAGING_DIRECTOR<br>
+                    <strong>Business Rules:</strong> REQUESTER ≠ APPROVER, REQUESTER ≠ PURCHASING
+                </div>`;
+            
+            // Sheet 5: User Categories
+            const categoriesContent = document.getElementById('user-categories');
+            excelContent += `
+                <div class="page-break">
+                    <div class="sheet-title">Sheet 5: User Category Bindings</div>
+                    <div class="sheet-desc">กำหนด Category ที่ PURCHASING รับผิดชอบ</div>
+                    ${categoriesContent.querySelector('table').outerHTML}
+                </div>`;
+            
+            // Sheet 6: Suppliers
+            const suppliersContent = document.getElementById('suppliers');
+            excelContent += `
+                <div class="page-break">
+                    <div class="sheet-title">Sheet 6: Suppliers - ผู้ขาย</div>
+                    <div class="sheet-desc">ข้อมูล Supplier (Import = Status COMPLETED อัตโนมัติ)</div>
+                    ${suppliersContent.querySelector('table').outerHTML}
+                    <br>
+                    <strong>JobType Options:</strong> BUY (ซื้อ), SELL (ขาย), BOTH (ทั้งซื้อและขาย)
+                </div>`;
+            
+            // Sheet 7: Supplier Contacts
+            const contactsContent = document.getElementById('supplier-contacts');
+            excelContent += `
+                <div class="page-break">
+                    <div class="sheet-title">Sheet 7: Supplier Contacts - ผู้ติดต่อ</div>
+                    <div class="sheet-desc">ผู้ติดต่อของ Supplier (อ้างอิง TaxId จาก Sheet 6)</div>
+                    ${contactsContent.querySelector('table').outerHTML}
+                </div>`;
+            
+            // Sheet 8: Supplier Categories
+            const supplierCatContent = document.getElementById('supplier-categories');
+            excelContent += `
+                <div class="page-break">
+                    <div class="sheet-title">Sheet 8: Supplier Categories</div>
+                    <div class="sheet-desc">หมวดหมู่ที่ Supplier ให้บริการ</div>
+                    ${supplierCatContent.querySelector('table').outerHTML}
+                </div>`;
+            
+            // Sheet 9: Categories Setup
+            const customCatContent = document.getElementById('custom-categories');
+            const customTables = customCatContent.querySelectorAll('table');
+            excelContent += `
+                <div class="page-break">
+                    <div class="sheet-title">Sheet 9: Categories Setup</div>
+                    <div class="sheet-desc">เพิ่ม Categories & Subcategories (Optional)</div>
+                    <strong>Standard Categories:</strong> IT, OFFICE, MRO, SERVICES, UNIFORM, ELECTRICAL, etc.<br><br>
+                    <strong>Custom Categories (ถ้าต้องการเพิ่ม):</strong>
+                    ${customTables[0].outerHTML}
+                    <br>
+                    <strong>Subcategories:</strong>
+                    ${customTables[1].outerHTML}
+                </div>`;
+            
+            excelContent += `
+                    <div class="page-break">
+                        <div class="sheet-title">📋 ลำดับการ Import (สำคัญมาก)</div>
+                        <ol style="font-size: 14px; line-height: 1.8;">
+                            <li>Companies - สร้างข้อมูลบริษัทก่อน</li>
+                            <li>Departments - สร้างแผนก (อ้างอิง CompanyCode)</li>
+                            <li>Users - สร้างพนักงาน</li>
+                            <li>User Company Roles - กำหนดบทบาท (อ้างอิง Email + CompanyCode)</li>
+                            <li>User Category Bindings - กำหนด Category ที่รับผิดชอบ</li>
+                            <li>Suppliers - สร้างข้อมูล Supplier</li>
+                            <li>Supplier Contacts - สร้างผู้ติดต่อ (อ้างอิง SupplierTaxId)</li>
+                            <li>Supplier Categories - กำหนด Categories ที่ให้บริการ</li>
+                            <li>Custom Categories - เพิ่มหมวดหมู่เพิ่มเติม (ถ้าต้องการ)</li>
+                        </ol>
+                    </div>
+                </body>
+                </html>`;
+            
+            // สร้างไฟล์ Excel
+            const blob = new Blob([excelContent], { 
+                type: 'application/vnd.ms-excel;charset=utf-8' 
+            });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'ERFX_Data_Import_v3.2.xls';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            
+            // แสดงข้อความแนะนำ
+            alert('✅ Excel Template Downloaded!\n\n' +
+                  '📋 ไฟล์นี้มี 9 sections แยกด้วย Page Break:\n\n' +
+                  '1. Companies → 2. Departments → 3. Users\n' +
+                  '4. User Roles → 5. User Categories\n' + 
+                  '6. Suppliers → 7. Supplier Contacts\n' +
+                  '8. Supplier Categories → 9. Categories Setup\n\n' +
+                  '⚠️ กรุณา Import ตามลำดับ!\n' +
+                  '💡 Tip: ใน Excel สามารถ Copy แต่ละ section ไปแยก sheet ได้');
+        }
+    </script>
+</body>
+</html>
