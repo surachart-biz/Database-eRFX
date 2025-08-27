@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eRFX System - Business Process Documentation</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 21cm;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+        }
+        
+        .cover-page {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            page-break-after: always;
+            border: 3px solid #003366;
+            padding: 40px;
+            margin-bottom: 40px;
+        }
+        
+        h1 {
+            color: #003366;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        h2 {
+            color: #003366;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+            margin-top: 30px;
+        }
+        
+        h3 {
+            color: #00508C;
+            margin-top: 20px;
+        }
+        
+        h4 {
+            color: #003366;
+            margin-top: 15px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        th {
+            background-color: #f0f5ff;
+            font-weight: bold;
+            color: #003366;
+        }
+        
+        .section {
+            page-break-inside: avoid;
+            margin-bottom: 30px;
+        }
+        
+        .canvas-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .canvas-cell {
+            border: 1px solid #ddd;
+            padding: 15px;
+            background: #f9f9f9;
+        }
+        
+        .canvas-cell h4 {
+            color: #003366;
+            margin: 0 0 10px 0;
+            font-size: 1.1em;
+        }
+        
+        .canvas-cell ul {
+            margin: 5px 0;
+            padding-left: 20px;
+            font-size: 0.95em;
+        }
+        
+        .status-box {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin: 2px;
+        }
+        
+        .ontime {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .delay {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .signature-section {
+            page-break-before: always;
+            margin-top: 40px;
+        }
+        
+        .signature-block {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin: 20px 0;
+            background: #f9f9f9;
+        }
+        
+        .signature-line {
+            border-bottom: 1px solid #000;
+            width: 300px;
+            margin: 20px 0;
+            display: inline-block;
+        }
+        
+        .checkbox {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            border: 1px solid #000;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 20px;
+            margin-top: 40px;
+            border-top: 2px solid #003366;
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .code-block {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            padding: 10px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+        
+        .highlight-box {
+            background: #f0f5ff;
+            border-left: 4px solid #003366;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        
+        .process-flow {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        
+        @media print {
+            .cover-page {
+                height: 100vh;
+            }
+            .section {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Cover Page -->
+    <div class="cover-page">
+        <h1>eRFX System</h1>
+        <h2 style="border: none; color: #666;">Business Process Documentation</h2>
+        <h3 style="color: #666;">User Agreement & Acknowledgment</h3>
+        <div style="margin-top: 60px;">
+            <p><strong>Version:</strong> 1.0</p>
+            <p><strong>Date:</strong> September 2025</p>
+        </div>
+    </div>
+
+    <!-- Section 1: Executive Summary -->
+    <section class="section">
+        <h2>Section 1: Executive Summary</h2>
+        <h3>Purpose of eRFX System</h3>
+        <p>The eRFX System is an electronic Request for Quotation platform designed to streamline and digitize the procurement process for Thai Union Group. This system replaces manual paper-based processes with an efficient, transparent, and auditable digital workflow.</p>
+        
+        <h3>Vision & Mission</h3>
+        <p><strong>Vision:</strong> To become the standard procurement platform that enables efficient, transparent, and compliant purchasing processes across Thai Union Group.</p>
+        <p><strong>Mission:</strong> To provide a user-friendly, secure, and efficient digital platform that reduces procurement cycle time, ensures compliance, and delivers cost savings through competitive bidding.</p>
+        
+        <h3>Key Performance Indicators</h3>
+        <ul>
+            <li>60% faster procurement cycle time</li>
+            <li>30% cost reduction through competitive bidding</li>
+            <li>100% compliance with procurement policies</li>
+        </ul>
+    </section>
+
+    <!-- Section 2: Business Model -->
+    <section class="section">
+        <h2>Section 2: Business Model</h2>
+        <div class="canvas-grid">
+            <div class="canvas-cell">
+                <h4>Key Partners</h4>
+                <ul>
+                    <li>Suppliers and vendors</li>
+                    <li>Internal departments</li>
+                    <li>IT support team</li>
+                    <li>Compliance team</li>
+                </ul>
+            </div>
+            <div class="canvas-cell">
+                <h4>Key Activities</h4>
+                <ul>
+                    <li>RFQ creation and management</li>
+                    <li>Supplier evaluation</li>
+                    <li>Quotation analysis</li>
+                    <li>Approval workflow</li>
+                </ul>
+            </div>
+            <div class="canvas-cell">
+                <h4>Key Resources</h4>
+                <ul>
+                    <li>Technical infrastructure</li>
+                    <li>Trained personnel</li>
+                    <li>Supplier database</li>
+                    <li>Historical data</li>
+                </ul>
+            </div>
+            <div class="canvas-cell">
+                <h4>Value Propositions</h4>
+                <ul>
+                    <li>Faster procurement cycle</li>
+                    <li>Transparent bidding process</li>
+                    <li>Cost savings</li>
+                    <li>Complete audit trail</li>
+                </ul>
+            </div>
+            <div class="canvas-cell">
+                <h4>Customer Relationships</h4>
+                <ul>
+                    <li>Self-service platform</li>
+                    <li>Training and support</li>
+                    <li>Regular feedback</li>
+                    <li>Continuous improvement</li>
+                </ul>
+            </div>
+            <div class="canvas-cell">
+                <h4>Channels</h4>
+                <ul>
+                    <li>Web application</li>
+                    <li>Email notifications</li>
+                    <li>System dashboards</li>
+                    <li>Reports and analytics</li>
+                </ul>
+            </div>
+            <div class="canvas-cell">
+                <h4>Customer Segments</h4>
+                <ul>
+                    <li>Requesters</li>
+                    <li>Approvers</li>
+                    <li>Purchasing team</li>
+                    <li>Suppliers</li>
+                </ul>
+            </div>
+            <div class="canvas-cell">
+                <h4>Cost Structure</h4>
+                <ul>
+                    <li>System development</li>
+                    <li>Infrastructure costs</li>
+                    <li>Training expenses</li>
+                    <li>Maintenance and support</li>
+                </ul>
+            </div>
+            <div class="canvas-cell">
+                <h4>Revenue Streams</h4>
+                <ul>
+                    <li>Cost savings from efficiency</li>
+                    <li>Better negotiated prices</li>
+                    <li>Reduced manual errors</li>
+                    <li>Time savings</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 3: Data Classification & Handling -->
+    <section class="section">
+        <h2>Section 3: Data Classification & Handling</h2>
+        
+        <h3>3.1 Data Classification Levels</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Classification</th>
+                    <th>Description</th>
+                    <th>Examples</th>
+                    <th>Handling Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Confidential</strong></td>
+                    <td>Highly sensitive business information</td>
+                    <td>
+                        • Supplier quotation prices<br>
+                        • Winner selection reasons<br>
+                        • Special terms & conditions<br>
+                        • Competitive analysis<br>
+                        • Negotiation strategies
+                    </td>
+                    <td>
+                        • Need-to-know basis only<br>
+                        • No external sharing<br>
+                        • Encrypted storage required
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Internal</strong></td>
+                    <td>Internal business operations data</td>
+                    <td>
+                        • RFQ information<br>
+                        • Supplier lists<br>
+                        • Q&A messages<br>
+                        • Approval workflows<br>
+                        • Supplier evaluation notes<br>
+                        • Internal reports
+                    </td>
+                    <td>
+                        • Thai Union employees only<br>
+                        • No public disclosure<br>
+                        • Standard security controls
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Restricted</strong></td>
+                    <td>Sensitive personal or financial data</td>
+                    <td>
+                        • Personal data (PDPA)<br>
+                        • Supplier financial documents<br>
+                        • Bank account details<br>
+                        • Credit information
+                    </td>
+                    <td>
+                        • Authorized personnel only<br>
+                        • Audit trail required<br>
+                        • Compliance with PDPA
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Public</strong></td>
+                    <td>Information approved for public release</td>
+                    <td>
+                        • General company policies<br>
+                        • Public announcements<br>
+                        • Product categories<br>
+                        • Contact information
+                    </td>
+                    <td>
+                        • Can be shared externally<br>
+                        • No special restrictions<br>
+                        • Standard handling
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>3.2 Data Handling Guidelines</h3>
+        <ul>
+            <li>All users must classify data appropriately before sharing or storing</li>
+            <li>Follow the principle of least privilege for data access</li>
+            <li>Report any suspected data breaches immediately</li>
+            <li>Do not store sensitive data on personal devices</li>
+            <li>Use secure channels for transmitting Confidential or Restricted data</li>
+        </ul>
+
+        <h3>3.3 System Access Levels</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Role</th>
+                    <th>Data Access Level</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>ADMIN</td>
+                    <td>Full access to system configuration and user data</td>
+                </tr>
+                <tr>
+                    <td>REQUESTER</td>
+                    <td>Access to own RFQs and related information</td>
+                </tr>
+                <tr>
+                    <td>APPROVER</td>
+                    <td>Access to RFQs within approval scope</td>
+                </tr>
+                <tr>
+                    <td>PURCHASING</td>
+                    <td>Access to approved RFQs and supplier information</td>
+                </tr>
+                <tr>
+                    <td>PURCHASING APPROVER</td>
+                    <td>Access to all RFQs requiring final approval</td>
+                </tr>
+                <tr>
+                    <td>SUPPLIER</td>
+                    <td>Access to assigned RFQs and own quotations only</td>
+                </tr>
+                <tr>
+                    <td>MANAGING DIRECTOR</td>
+                    <td>Read-only access to all reports and dashboards</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Section 4: User Roles & Responsibilities -->
+    <section class="section">
+        <h2>Section 4: User Roles & Responsibilities</h2>
+        
+        <h3>4.1 Role Matrix</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Role</th>
+                    <th>Primary Responsibilities</th>
+                    <th>SLA (Days)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>ADMIN</td>
+                    <td>User management, Exchange rates configuration</td>
+                    <td>N/A</td>
+                </tr>
+                <tr>
+                    <td>REQUESTER</td>
+                    <td>Create RFQ, Track status, Respond to feedback</td>
+                    <td>1</td>
+                </tr>
+                <tr>
+                    <td>APPROVER</td>
+                    <td>Review and approve RFQ requests</td>
+                    <td>2</td>
+                </tr>
+                <tr>
+                    <td>PURCHASING</td>
+                    <td>Manage suppliers, Process approved RFQs, Handle Q&A</td>
+                    <td>2</td>
+                </tr>
+                <tr>
+                    <td>PURCHASING APPROVER</td>
+                    <td>Final approval of purchasing decisions, Supplier registration approval</td>
+                    <td>1</td>
+                </tr>
+                <tr>
+                    <td>SUPPLIER</td>
+                    <td>Submit quotations, Respond to RFQs, Ask questions</td>
+                    <td>3</td>
+                </tr>
+                <tr>
+                    <td>MANAGING DIRECTOR</td>
+                    <td>View dashboards and reports only</td>
+                    <td>N/A</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>4.2 Role Restrictions</h3>
+        <ul>
+            <li>REQUESTER cannot be APPROVER for the same RFQ</li>
+            <li>REQUESTER cannot be PURCHASING</li>
+            <li>PURCHASING can be REQUESTER (create own RFQ)</li>
+            <li>Maximum 3 approval levels</li>
+            <li>1 user = Primary Role + Secondary Role (switchable)</li>
+        </ul>
+    </section>
+
+    <!-- Section 5: Business Process Workflows -->
+    <section class="section">
+        <h2>Section 5: Business Process Workflows</h2>
+        
+        <h3>5.1 Complete RFQ Lifecycle</h3>
+        <ol>
+            <li><strong>RFQ Creation:</strong> Requester creates and submits RFQ</li>
+            <li><strong>Approval Process:</strong> RFQ goes through approval levels (max 3 levels)</li>
+            <li><strong>Purchasing Review:</strong> Purchasing team processes approved RFQ</li>
+            <li><strong>Supplier Invitation:</strong> Selected suppliers receive RFQ</li>
+            <li><strong>Quotation Submission:</strong> Suppliers submit their quotations</li>
+            <li><strong>Q&A Process:</strong> Suppliers can ask questions, Purchasing responds</li>
+            <li><strong>Winner Selection:</strong> Purchasing selects winners</li>
+            <li><strong>Final Approval:</strong> Purchasing Approver validates selection</li>
+            <li><strong>Completion:</strong> Best quotation selected and RFQ completed</li>
+        </ol>
+
+        <h3>5.2 Status Flow</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Status</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Save Draft</td>
+                    <td>Saved but not submitted (auto-delete after 3 days)</td>
+                </tr>
+                <tr>
+                    <td>Pending</td>
+                    <td>Awaiting approval</td>
+                </tr>
+                <tr>
+                    <td>Declined</td>
+                    <td>Returned for revision</td>
+                </tr>
+                <tr>
+                    <td>Rejected</td>
+                    <td>Request denied</td>
+                </tr>
+                <tr>
+                    <td>Completed</td>
+                    <td>Process finished</td>
+                </tr>
+                <tr>
+                    <td>Re-bid</td>
+                    <td>New bidding round requested by Purchasing Approver</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>5.3 Supplier Registration Process (2-Step Approval)</h3>
+        <div class="process-flow">
+            <h4>Step 1: Initial Review by PURCHASING</h4>
+            <ul>
+                <li>Review supplier documents and information</li>
+                <li>Accept → Send to PURCHASING APPROVER</li>
+                <li>Declined → Return to Supplier for corrections</li>
+            </ul>
+            
+            <h4>Step 2: Final Approval by PURCHASING APPROVER</h4>
+            <ul>
+                <li>Final review of supplier registration</li>
+                <li>Accept → Completed, send invitation emails</li>
+                <li>Declined → Return to PURCHASING for review</li>
+            </ul>
+        </div>
+
+        <h3>5.4 Re-bid Process</h3>
+        <div class="process-flow">
+            <ol>
+                <li>PURCHASING APPROVER determines need for re-bid</li>
+                <li>Request sent back to PURCHASING</li>
+                <li>PURCHASING invites additional suppliers or extends deadline</li>
+                <li>New quotation round begins</li>
+                <li>Process continues from quotation submission</li>
+            </ol>
+        </div>
+
+        <h3>5.5 Q&A Process</h3>
+        <div class="process-flow">
+            <ol>
+                <li>Supplier submits question through system</li>
+                <li>Question status changes to "Awaiting"</li>
+                <li>PURCHASING receives notification</li>
+                <li>PURCHASING responds to question</li>
+                <li>Response status changes to "Responded"</li>
+                <li>Supplier receives notification of response</li>
+            </ol>
+        </div>
+    </section>
+
+    <!-- Section 6: Business Rules & Policies -->
+    <section class="section">
+        <h2>Section 6: Business Rules & Policies</h2>
+        
+        <h3>6.1 General Rules</h3>
+        <ul>
+            <li>All RFQs must have minimum 1 item</li>
+            <li>RFQ Number Format: {CompanyShortName}-{YY}-{MM}-{XXXX} (Example: SKF-25-01-0001, resets monthly)</li>
+            <li>Draft RFQs are automatically deleted after 3 days</li>
+            <li>Quotations must be submitted before deadline</li>
+            <li>All transactions are logged for audit purposes</li>
+            <li>Exchange rates are locked at Submission Deadline</li>
+        </ul>
+
+        <h3>6.2 Approval Hierarchy</h3>
+        <ul>
+            <li><strong>Level 1:</strong> Department Head/Supervisor</li>
+            <li><strong>Level 2:</strong> Division Manager</li>
+            <li><strong>Level 3:</strong> Senior Management</li>
+        </ul>
+
+        <h3>6.3 Supplier Selection Criteria</h3>
+        <ul>
+            <li>Must have complete registration documents</li>
+            <li>Active status in the system</li>
+            <li>No outstanding compliance issues</li>
+            <li>Relevant product/service categories</li>
+            <li>Can have multiple contacts but must have one primary contact</li>
+        </ul>
+
+        <h3>6.4 Date & Time Rules</h3>
+        <ul>
+            <li><strong>Required Quotation Date:</strong> Expected date to receive quotations</li>
+            <li><strong>Submission Deadline:</strong> Must be less than or equal to Required Quotation Date</li>
+            <li><strong>Extension/Reduction:</strong> Can be modified with reason</li>
+        </ul>
+
+        <h3>6.5 Document Requirements</h3>
+        <p><strong>Corporate Entity (5 specific documents):</strong></p>
+        <ul>
+            <li>Company Registration Certificate</li>
+            <li>Tax Registration (P.P.20)</li>
+            <li>Financial Reports</li>
+            <li>Company Profile</li>
+            <li>NDA (Non-Disclosure Agreement)</li>
+        </ul>
+        
+        <p><strong>Individual (2 specific documents):</strong></p>
+        <ul>
+            <li>National ID Card</li>
+            <li>NDA (Non-Disclosure Agreement)</li>
+        </ul>
+
+        <h3>6.6 Exchange Rate Lock Rule</h3>
+        <div class="highlight-box">
+            <h4>Key Points:</h4>
+            <ul>
+                <li><strong>Lock Time:</strong> Exchange rates are locked at Submission Deadline</li>
+                <li><strong>Rate Source:</strong> Uses active rate as of Submission Deadline</li>
+                <li><strong>Comparison:</strong> Compare prices using ConvertedPrice (not original)</li>
+                <li><strong>Ranking:</strong> Always rank by converted price</li>
+                <li><strong>Display:</strong> Show both original and converted prices</li>
+                <li><strong>Immutable:</strong> Locked rates never change, even with new rate updates</li>
+            </ul>
+            <h4>Benefits:</h4>
+            <ul>
+                <li>Fair comparison (everyone uses same rate)</li>
+                <li>Transparent (see both original and converted)</li>
+                <li>Predictable (Supplier knows deadline and rate lock)</li>
+                <li>Auditable (history of rate locks)</li>
+            </ul>
+        </div>
+
+        <h3>6.7 Winner Selection Rules</h3>
+        <ul>
+            <li><strong>System Auto-highlight:</strong>
+                <ul>
+                    <li>Purchase RFQ: Lowest price highlighted</li>
+                    <li>Sales RFQ: Highest price highlighted</li>
+                </ul>
+            </li>
+            <li><strong>Manual Override:</strong> If selecting different from system highlight, reason must be provided</li>
+            <li><strong>Selection Requirement:</strong> Must select 1 winner per item</li>
+            <li><strong>Final Approval:</strong> PURCHASING APPROVER can change selection with reason</li>
+        </ul>
+
+        <h3>6.8 Optional Fields for Suppliers</h3>
+        <p>PURCHASING can require suppliers to provide:</p>
+        <ul>
+            <li>MOQ (Minimum Order Quantity)</li>
+            <li>DLT (Delivery Lead Time)</li>
+            <li>Credit Terms</li>
+            <li>Warranty Period</li>
+            <li>Inco Terms</li>
+        </ul>
+    </section>
+
+    <!-- Section 7: Service Level Agreements -->
+    <section class="section">
+        <h2>Section 7: Service Level Agreements</h2>
+        
+        <h3>7.1 Response Time Requirements</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Role</th>
+                    <th>Action Required</th>
+                    <th>SLA (Days)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>REQUESTER</td>
+                    <td>Revise returned RFQ</td>
+                    <td>1</td>
+                </tr>
+                <tr>
+                    <td>APPROVER</td>
+                    <td>Approve/Decline/Reject</td>
+                    <td>2</td>
+                </tr>
+                <tr>
+                    <td>PURCHASING</td>
+                    <td>Process approved RFQ</td>
+                    <td>2</td>
+                </tr>
+                <tr>
+                    <td>PURCHASING APPROVER</td>
+                    <td>Final approval</td>
+                    <td>1</td>
+                </tr>
+                <tr>
+                    <td>SUPPLIER</td>
+                    <td>Submit quotation</td>
+                    <td>3</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>7.2 Notification Rules (Internal Users)</h3>
+        <h4>Notification Rules Matrix:</h4>
+        <table>
+            <thead>
+                <tr>
+                    <th>RFQ Holder Role</th>
+                    <th>Recipients</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>REQUESTER</td>
+                    <td>Self + Approver Supervisor</td>
+                </tr>
+                <tr>
+                    <td>APPROVER</td>
+                    <td>Self + Requester</td>
+                </tr>
+                <tr>
+                    <td>PURCHASING</td>
+                    <td>Self + Requester + Purchasing Supervisor</td>
+                </tr>
+                <tr>
+                    <td>PURCHASING APPROVER</td>
+                    <td>Self + Requester + Purchasing</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <p><strong>Notification Rules:</strong></p>
+        <ul>
+            <li>Reminder every 2 days if no action taken</li>
+            <li>Status Display: <span class="status-box ontime">ONTIME</span> (green) vs <span class="status-box delay">DELAY</span> (red)</li>
+        </ul>
+
+        <h3>7.3 Supplier Rules & Notifications</h3>
+        <p><strong>Rules:</strong></p>
+        <ul>
+            <li>Can change decision before deadline (from "Not Participating" to "Participating")</li>
+            <li>Can modify quotation until deadline</li>
+            <li>Multiple contacts allowed, but only the one who accepts becomes responsible</li>
+            <li>System auto-declines if no response by Required Quotation Date</li>
+        </ul>
+        
+        <p><strong>Notifications:</strong></p>
+        <ul>
+            <li>2 days: Reminder if no action</li>
+            <li>24 hours: Alert before deadline</li>
+            <li>Auto-decline if no response by deadline</li>
+        </ul>
+
+        <h3>7.4 Ontime/Delay Status System</h3>
+        <p><strong>IMPORTANT:</strong> Status shows per role perspective</p>
+        
+        <div class="highlight-box">
+            <h4>Example Timeline:</h4>
+            <ul>
+                <li><strong>Day 0:</strong> Requester → Approver (start counting)</li>
+                <li><strong>Day 3:</strong> Approver approved (late 1 day) → Purchasing</li>
+                <ul style="margin-left: 20px;">
+                    <li>Approver view: <span class="status-box delay">DELAY</span> (exceeded 2 days)</li>
+                    <li>Purchasing view: <span class="status-box ontime">ONTIME</span> (just received)</li>
+                </ul>
+            </ul>
+        </div>
+
+        <h3>7.5 Two-Step Approval Process</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Process</th>
+                    <th>Step 1</th>
+                    <th>Step 2</th>
+                    <th>Total Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Supplier Registration</td>
+                    <td>PURCHASING (1 day)</td>
+                    <td>PURCHASING APPROVER (1 day)</td>
+                    <td>2 days</td>
+                </tr>
+                <tr>
+                    <td>Winner Selection</td>
+                    <td>PURCHASING selects</td>
+                    <td>PURCHASING APPROVER approves</td>
+                    <td>1 day</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>7.6 Re-bid Process Timeline</h3>
+        <ul>
+            <li>PURCHASING APPROVER decision: 1 day</li>
+            <li>PURCHASING re-invite suppliers: 2 days</li>
+            <li>New quotation period: As defined by PURCHASING</li>
+        </ul>
+    </section>
+
+    <!-- Section 8: Data Privacy & Security -->
+    <section class="section">
+        <h2>Section 8: Data Privacy & Security</h2>
+        
+        <h3>8.1 Security Measures</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Component</th>
+                    <th>Implementation</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Authentication</td>
+                    <td>JWT Token based authentication</td>
+                </tr>
+                <tr>
+                    <td>Password Policy</td>
+                    <td>Minimum 8 characters with complexity requirements</td>
+                </tr>
+                <tr>
+                    <td>Data Encryption</td>
+                    <td>TLS 1.3 for transmission, AES-256 for storage</td>
+                </tr>
+                <tr>
+                    <td>Session Management</td>
+                    <td>Auto-logout after 30 minutes of inactivity</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>8.2 Data Retention Policy</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Data Type</th>
+                    <th>Retention Period</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Completed RFQs</td>
+                    <td>5 years for audit</td>
+                </tr>
+                <tr>
+                    <td>User Activity Logs</td>
+                    <td>1 year</td>
+                </tr>
+                <tr>
+                    <td>System Error Logs</td>
+                    <td>90 days</td>
+                </tr>
+                <tr>
+                    <td>Email/Notifications</td>
+                    <td>90 days</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>8.3 Privacy Policy</h3>
+        <ul>
+            <li>All data is confidential and proprietary to Thai Union Group</li>
+            <li>User access is logged and monitored</li>
+            <li>Personal data is protected according to PDPA regulations</li>
+            <li>No sharing of credentials is permitted</li>
+        </ul>
+    </section>
+
+    <!-- Section 9: System Usage Terms & Conditions -->
+    <section class="section">
+        <h2>Section 9: System Usage Terms & Conditions</h2>
+        
+        <h3>Acceptable Use Policy</h3>
+        <ul>
+            <li>System must be used for authorized business purposes only</li>
+            <li>Users must maintain confidentiality of login credentials</li>
+            <li>Accurate and truthful information must be provided</li>
+            <li>Comply with all company policies and procedures</li>
+        </ul>
+
+        <h3>User Responsibilities</h3>
+        <ul>
+            <li>Complete required training before system access</li>
+            <li>Report any security incidents immediately</li>
+            <li>Maintain data accuracy and completeness</li>
+            <li>Follow SLA requirements for assigned role</li>
+        </ul>
+
+        <h3>Prohibited Activities</h3>
+        <ul>
+            <li>Unauthorized access attempts</li>
+            <li>Sharing login credentials</li>
+            <li>Manipulation of data or processes</li>
+            <li>Circumventing approval workflows</li>
+            <li>Using system for personal gain</li>
+        </ul>
+
+        <h3>Violation Consequences</h3>
+        <ul>
+            <li>First violation: Written warning</li>
+            <li>Second violation: Temporary suspension</li>
+            <li>Third violation: Permanent revocation of access</li>
+            <li>Serious violations may result in termination</li>
+        </ul>
+    </section>
+
+    <!-- Section 10: Change Management Process -->
+    <section class="section">
+        <h2>Section 10: Change Management Process</h2>
+        
+        <h3>10.1 Change Request Categories</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th>Examples</th>
+                    <th>Approval Level</th>
+                    <th>Timeline</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="background: #ffebee; color: #c62828;">Critical</td>
+                    <td>Security patches, compliance updates</td>
+                    <td>• PDPA compliance<br>• Security vulnerabilities<br>• Legal requirements</td>
+                    <td>IT Manager + Business Owner</td>
+                    <td>24-48 hours</td>
+                </tr>
+                <tr>
+                    <td style="background: #ffebee; color: #c62828;">Major</td>
+                    <td>New features, workflow changes</td>
+                    <td>• New approval levels<br>• Additional role types<br>• Process modifications</td>
+                    <td>Steering Committee</td>
+                    <td>2-4 weeks</td>
+                </tr>
+                <tr>
+                    <td style="background: #fff3e0; color: #ef6c00;">Minor</td>
+                    <td>UI improvements, report updates</td>
+                    <td>• Dashboard changes<br>• New report formats<br>• Field additions</td>
+                    <td>Business Owner</td>
+                    <td>1-2 weeks</td>
+                </tr>
+                <tr>
+                    <td style="background: #e8f5e9; color: #2e7d32;">Standard</td>
+                    <td>Configuration changes</td>
+                    <td>• Email templates<br>• Notification settings<br>• Display preferences</td>
+                    <td>System Admin</td>
+                    <td>3-5 days</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>10.2 Change Implementation Phases</h3>
+        
+        <div class="process-flow">
+            <h4>Phase 1: Request & Assessment (Day 1-3)</h4>
+            <ul>
+                <li><strong>Submit Request:</strong> User submits change request via ticketing system</li>
+                <li><strong>Initial Review:</strong> IT team validates technical feasibility</li>
+                <li><strong>Impact Analysis:</strong> Assess affected users, systems, and processes</li>
+                <li><strong>Risk Assessment:</strong> Identify potential risks and mitigation plans</li>
+            </ul>
+        </div>
+
+        <div class="process-flow">
+            <h4>Phase 2: Approval & Planning (Day 4-7)</h4>
+            <ul>
+                <li><strong>Business Justification:</strong> Document benefits and ROI</li>
+                <li><strong>Stakeholder Review:</strong> Gather feedback from affected departments</li>
+                <li><strong>Approval Decision:</strong> Obtain required approvals based on category</li>
+                <li><strong>Implementation Plan:</strong> Create detailed rollout schedule</li>
+            </ul>
+        </div>
+
+        <div class="process-flow">
+            <h4>Phase 3: Development & Testing (Variable)</h4>
+            <ul>
+                <li><strong>Development:</strong> Make changes in development environment</li>
+                <li><strong>Testing:</strong> UAT with selected users</li>
+                <li><strong>Documentation:</strong> Update user guides and training materials</li>
+                <li><strong>Sign-off:</strong> Obtain user acceptance</li>
+            </ul>
+        </div>
+
+        <div class="process-flow">
+            <h4>Phase 4: Deployment & Monitor (Day of Release + 7 days)</h4>
+            <ul>
+                <li><strong>Communication:</strong> Announce changes to all users</li>
+                <li><strong>Deployment:</strong> Release to production environment</li>
+                <li><strong>Monitoring:</strong> Track system performance and user feedback</li>
+                <li><strong>Post-Implementation Review:</strong> Evaluate success after 7 days</li>
+            </ul>
+        </div>
+
+        <h3>10.3 Special Change Scenarios</h3>
+        <div class="highlight-box">
+            <h4>Deadline Extension/Reduction:</h4>
+            <ul>
+                <li>PURCHASING can request with reason</li>
+                <li>Notifications sent to all affected suppliers</li>
+                <li>Must not exceed Required Quotation Date</li>
+            </ul>
+            
+            <h4>Re-bid Approval:</h4>
+            <ul>
+                <li>PURCHASING APPROVER initiates</li>
+                <li>Returns to PURCHASING for new round</li>
+                <li>All previous quotations archived</li>
+            </ul>
+            
+            <h4>Supplier Registration Revision:</h4>
+            <ul>
+                <li>Can be requested at either approval step</li>
+                <li>Supplier notified with specific requirements</li>
+                <li>Resubmission starts approval process again</li>
+            </ul>
+        </div>
+
+        <h3>10.4 Communication Matrix</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Stakeholder</th>
+                    <th>When to Notify</th>
+                    <th>Method</th>
+                    <th>Content</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>All Users</td>
+                    <td>7 days before major change</td>
+                    <td>Email + System Banner</td>
+                    <td>What's changing, when, and why</td>
+                </tr>
+                <tr>
+                    <td>Affected Departments</td>
+                    <td>14 days before</td>
+                    <td>Department Meeting</td>
+                    <td>Detailed impact and training schedule</td>
+                </tr>
+                <tr>
+                    <td>Key Users</td>
+                    <td>21 days before</td>
+                    <td>Workshop</td>
+                    <td>Preview and feedback session</td>
+                </tr>
+                <tr>
+                    <td>Management</td>
+                    <td>Monthly</td>
+                    <td>Report</td>
+                    <td>Change summary and metrics</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Section 11: Training & Support Structure -->
+    <section class="section">
+        <h2>Section 11: Training & Support Structure</h2>
+        
+        <h3>11.1 Training Program Levels</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Level</th>
+                    <th>Target Audience</th>
+                    <th>Duration</th>
+                    <th>Format</th>
+                    <th>Content</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Foundation</strong></td>
+                    <td>All New Users</td>
+                    <td>2 hours</td>
+                    <td>Online + Quiz</td>
+                    <td>• System overview<br>• Basic navigation<br>• Security awareness<br>• Data classification</td>
+                </tr>
+                <tr>
+                    <td><strong>Role-Specific</strong></td>
+                    <td>Based on assigned role</td>
+                    <td>3-4 hours</td>
+                    <td>Classroom</td>
+                    <td>• Role workflows<br>• SLA requirements<br>• Common scenarios<br>• Best practices</td>
+                </tr>
+                <tr>
+                    <td><strong>Advanced</strong></td>
+                    <td>Power Users</td>
+                    <td>1 day</td>
+                    <td>Workshop</td>
+                    <td>• Complex workflows<br>• Reports & analytics<br>• Troubleshooting<br>• Tips & tricks</td>
+                </tr>
+                <tr>
+                    <td><strong>Admin</strong></td>
+                    <td>System Administrators</td>
+                    <td>2 days</td>
+                    <td>Hands-on Lab</td>
+                    <td>• User management<br>• Configuration<br>• Monitoring<br>• Maintenance</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>11.2 Role-Specific Training Topics</h3>
+        
+        <h4>PURCHASING Training:</h4>
+        <ul>
+            <li>2-step Supplier approval process</li>
+            <li>Winner selection with justification</li>
+            <li>Managing Q&A with Suppliers</li>
+            <li>Re-bid scenarios and procedures</li>
+            <li>Optional fields configuration</li>
+            <li>Deadline modification process</li>
+        </ul>
+        
+        <h4>SUPPLIER Training:</h4>
+        <ul>
+            <li>Multi-contact management</li>
+            <li>Changing participation decision</li>
+            <li>Q&A feature usage</li>
+            <li>Quotation modification before deadline</li>
+            <li>Understanding exchange rate locks</li>
+            <li>Document upload requirements</li>
+        </ul>
+
+        <h3>11.3 Training Schedule Matrix</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>User Type</th>
+                    <th>Onboarding</th>
+                    <th>Refresher</th>
+                    <th>Updates</th>
+                    <th>Certification</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>REQUESTER</td>
+                    <td>Day 1-2</td>
+                    <td>Every 6 months</td>
+                    <td>As needed</td>
+                    <td>Annual</td>
+                </tr>
+                <tr>
+                    <td>APPROVER</td>
+                    <td>Day 1-2</td>
+                    <td>Every 6 months</td>
+                    <td>As needed</td>
+                    <td>Annual</td>
+                </tr>
+                <tr>
+                    <td>PURCHASING</td>
+                    <td>Week 1</td>
+                    <td>Quarterly</td>
+                    <td>Monthly briefing</td>
+                    <td>Annual</td>
+                </tr>
+                <tr>
+                    <td>SUPPLIER</td>
+                    <td>Before first RFQ</td>
+                    <td>On request</td>
+                    <td>Email updates</td>
+                    <td>Not required</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>11.4 Support Channels</h3>
+        
+        <div style="background: #f5f5f5; border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px;">
+            <h4>Level 1: Self-Service Portal</h4>
+            <ul>
+                <li><strong>Available:</strong> 24/7</li>
+                <li><strong>Response:</strong> Immediate</li>
+                <li><strong>Resources:</strong>
+                    • FAQs and knowledge base<br>
+                    • Video tutorials<br>
+                    • User guides (PDF)<br>
+                    • Common error solutions
+                </li>
+            </ul>
+        </div>
+
+        <div style="background: #f5f5f5; border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px;">
+            <h4>Level 2: Help Desk</h4>
+            <ul>
+                <li><strong>Available:</strong> Monday-Friday, 08:00-18:00</li>
+                <li><strong>Response:</strong> Within 4 hours</li>
+                <li><strong>Contact:</strong> erfx.support@bizdimension.com or ext. 1234</li>
+                <li><strong>Handles:</strong>
+                    • Password resets<br>
+                    • Access issues<br>
+                    • Basic troubleshooting<br>
+                    • Training requests
+                </li>
+            </ul>
+        </div>
+
+        <div style="background: #f5f5f5; border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px;">
+            <h4>Level 3: Business Support Team</h4>
+            <ul>
+                <li><strong>Available:</strong> Monday-Friday, 09:00-17:00</li>
+                <li><strong>Response:</strong> Within 1 business day</li>
+                <li><strong>Handles:</strong>
+                    • Process clarifications<br>
+                    • Workflow issues<br>
+                    • Business rule questions<br>
+                    • Change requests
+                </li>
+            </ul>
+        </div>
+
+        <div style="background: #f5f5f5; border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px;">
+            <h4>Level 4: Technical Team</h4>
+            <ul>
+                <li><strong>Available:</strong> Escalation only</li>
+                <li><strong>Response:</strong> Based on priority</li>
+                <li><strong>Handles:</strong>
+                    • System errors<br>
+                    • Performance issues<br>
+                    • Integration problems<br>
+                    • Critical incidents
+                </li>
+            </ul>
+        </div>
+
+        <h3>11.5 Issue Escalation Matrix</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Priority</th>
+                    <th>Definition</th>
+                    <th>Examples</th>
+                    <th>Response Time</th>
+                    <th>Resolution Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="background: #ffebee; color: #c62828;">P1 - Critical</td>
+                    <td>System down, major function unavailable</td>
+                    <td>• Cannot login<br>• Cannot submit RFQ<br>• Data loss</td>
+                    <td>30 minutes</td>
+                    <td>4 hours</td>
+                </tr>
+                <tr>
+                    <td style="background: #ffebee; color: #c62828;">P2 - High</td>
+                    <td>Significant impact on operations</td>
+                    <td>• Reports not generating<br>• Notifications not sending<br>• Slow performance</td>
+                    <td>2 hours</td>
+                    <td>8 hours</td>
+                </tr>
+                <tr>
+                    <td style="background: #fff3e0; color: #ef6c00;">P3 - Medium</td>
+                    <td>Limited impact, workaround available</td>
+                    <td>• UI issues<br>• Non-critical features<br>• Training needs</td>
+                    <td>4 hours</td>
+                    <td>2 days</td>
+                </tr>
+                <tr>
+                    <td style="background: #e8f5e9; color: #2e7d32;">P4 - Low</td>
+                    <td>Minor issues, enhancements</td>
+                    <td>• Cosmetic issues<br>• Feature requests<br>• General inquiries</td>
+                    <td>1 day</td>
+                    <td>5 days</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>11.6 Knowledge Resources</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Resource Type</th>
+                    <th>Location</th>
+                    <th>Update Frequency</th>
+                    <th>Owner</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>User Manual</td>
+                    <td>SharePoint/eRFX/Docs</td>
+                    <td>Quarterly</td>
+                    <td>Business Team</td>
+                </tr>
+                <tr>
+                    <td>Quick Reference Cards</td>
+                    <td>System Help Menu</td>
+                    <td>As needed</td>
+                    <td>Training Team</td>
+                </tr>
+                <tr>
+                    <td>Video Tutorials</td>
+                    <td>Learning Portal</td>
+                    <td>Bi-annual</td>
+                    <td>Training Team</td>
+                </tr>
+                <tr>
+                    <td>FAQs</td>
+                    <td>Support Portal</td>
+                    <td>Monthly</td>
+                    <td>Help Desk</td>
+                </tr>
+                <tr>
+                    <td>Release Notes</td>
+                    <td>Email + Portal</td>
+                    <td>Per release</td>
+                    <td>IT Team</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Section 12: Dashboard & Real-time Monitoring -->
+    <section class="section">
+        <h2>Section 12: Dashboard & Real-time Monitoring</h2>
+        
+        <h3>12.1 Dashboard Components by Role</h3>
+        
+        <h4>REQUESTER Dashboard</h4>
+        <ul>
+            <li><strong>Status Overview:</strong> Total, Save Draft, Pending, Declined, Rejected, Completed</li>
+            <li><strong>Urgent Items:</strong> 5 RFQs approaching deadline this week</li>
+            <li><strong>Notifications:</strong> Draft expiry warnings, status updates</li>
+            <li><strong>Date Range Filter:</strong> Filter by creation date</li>
+        </ul>
+        
+        <h4>APPROVER Dashboard</h4>
+        <ul>
+            <li><strong>Status Overview:</strong> Total, Pending</li>
+            <li><strong>Urgent Items:</strong> 5 RFQs approaching review deadline</li>
+            <li><strong>Notifications:</strong> New approvals required</li>
+        </ul>
+        
+        <h4>PURCHASING Dashboard</h4>
+        <ul>
+            <li><strong>Status Overview:</strong> Total, Pending, Declined, Rejected, Completed</li>
+            <li><strong>Supplier Activity:</strong> 5 suppliers participating this week</li>
+            <li><strong>New Registrations:</strong> 5 latest supplier registrations</li>
+            <li><strong>Q&A:</strong> 5 unanswered questions from suppliers</li>
+            <li><strong>Notifications:</strong> Real-time updates</li>
+        </ul>
+        
+        <h4>SUPPLIER Dashboard</h4>
+        <ul>
+            <li><strong>Invitation Status:</strong> Not Responded, Participating, Declined</li>
+            <li><strong>Active RFQs:</strong> 5 invitations to participate</li>
+            <li><strong>Deadlines:</strong> 5 quotations approaching deadline</li>
+            <li><strong>Q&A:</strong> Latest responses from purchasing</li>
+        </ul>
+        
+        <h4>PURCHASING APPROVER Dashboard</h4>
+        <ul>
+            <li><strong>Supplier Quotations:</strong> Total, Pending, Declined, Rejected, Completed</li>
+            <li><strong>Weekly Activity:</strong> 5 suppliers submitted this week</li>
+            <li><strong>New Registrations:</strong> 5 latest supplier registrations</li>
+            <li><strong>Notifications:</strong> Approvals required</li>
+        </ul>
+
+        <h3>12.2 Real-time Update Indicators</h3>
+        <ul>
+            <li>Just now</li>
+            <li>4 hours ago</li>
+            <li>Yesterday</li>
+            <li>This week</li>
+        </ul>
+
+        <h3>12.3 Notification Format</h3>
+        <div class="code-block">
+            Icon + {RFQ Number} + {Project Name} + {Sender} + {Action} + {Status} + {Time}
+            <br>
+            Example: 📋 SKF-25-01-0001 Office Supplies John Smith submitted for approval - 3 hours ago
+        </div>
+
+        <h3>12.4 KPI Tracking</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Target</th>
+                    <th>Measurement</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Average Approval Time</td>
+                    <td>&lt; 2 days</td>
+                    <td>Time from submission to approval</td>
+                </tr>
+                <tr>
+                    <td>Supplier Participation Rate</td>
+                    <td>&gt; 70%</td>
+                    <td>Accepted invitations / Total invitations</td>
+                </tr>
+                <tr>
+                    <td>On-time Completion Rate</td>
+                    <td>&gt; 90%</td>
+                    <td>Completed within SLA / Total completed</td>
+                </tr>
+                <tr>
+                    <td>Re-bid Rate</td>
+                    <td>&lt; 10%</td>
+                    <td>Re-bid requests / Total RFQs</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Section 13: User Acknowledgment & Sign-off -->
+    <section class="signature-section">
+        <h2>Section 13: User Acknowledgment & Sign-off</h2>
+        
+        <h3>Declaration</h3>
+        <p>Please check the boxes below to confirm that you have read and understood all requirements:</p>
+        
+        <div style="margin: 20px 0;">
+            <p><span class="checkbox"></span> I have read and understood this Business Process Documentation</p>
+            <p><span class="checkbox"></span> I accept all terms and conditions of the eRFX system</p>
+            <p><span class="checkbox"></span> I will comply with the Service Level Agreement for my assigned role</p>
+            <p><span class="checkbox"></span> I understand the notification rules and Ontime/Delay Status system</p>
+            <p><span class="checkbox"></span> I understand the 2-step Supplier approval process</p>
+            <p><span class="checkbox"></span> I understand the winner selection rules and justification requirements</p>
+            <p><span class="checkbox"></span> I understand the Re-bid process and procedures</p>
+            <p><span class="checkbox"></span> I understand the Q&A process between Suppliers and Purchasing</p>
+            <p><span class="checkbox"></span> I understand the exchange rate lock mechanism</p>
+            <p><span class="checkbox"></span> I will maintain confidentiality of information</p>
+            <p><span class="checkbox"></span> I will not share my login credentials with others</p>
+            <p><span class="checkbox"></span> I will immediately report any security issues</p>
+            <p><span class="checkbox"></span> I understand the consequences of violating usage terms</p>
+        </div>
+        
+        <p><strong>By signing below, I acknowledge that I have read, understood, and agree to comply with all terms, conditions, policies, and procedures outlined in this eRFX System Business Process Documentation.</strong></p>
+
+        <!-- Signature Block 1: Employee Thai Union Group -->
+        <div class="signature-block">
+            <h4>Employee - Thai Union Group</h4>
+            <table style="border: none;">
+                <tr>
+                    <td style="border: none;">Name: <span class="signature-line"></span></td>
+                    <td style="border: none;">Employee ID: <span class="signature-line"></span></td>
+                </tr>
+                <tr>
+                    <td style="border: none;">Department: <span class="signature-line"></span></td>
+                    <td style="border: none;">Position: <span class="signature-line"></span></td>
+                </tr>
+                <tr>
+                    <td style="border: none;">Email: <span class="signature-line"></span></td>
+                    <td style="border: none;">Phone: <span class="signature-line"></span></td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="border: none;">
+                        Signature: <span class="signature-line"></span>
+                        Date: <span class="signature-line"></span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Signature Block 2: Employee Biz Dimension -->
+        <div class="signature-block">
+            <h4>Employee - Biz Dimension</h4>
+            <table style="border: none;">
+                <tr>
+                    <td style="border: none;">Name: <span class="signature-line"></span></td>
+                    <td style="border: none;">Position: <span class="signature-line"></span></td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="border: none;">
+                        Signature: <span class="signature-line"></span>
+                        Date: <span class="signature-line"></span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Signature Block 3: Employee IT Biz Dimension -->
+        <div class="signature-block">
+            <h4>Employee - IT Biz Dimension</h4>
+            <table style="border: none;">
+                <tr>
+                    <td style="border: none;">Name: <span class="signature-line"></span></td>
+                    <td style="border: none;">Position: <span class="signature-line"></span></td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="border: none;">
+                        Signature: <span class="signature-line"></span>
+                        Date: <span class="signature-line"></span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- For Office Use Only -->
+        <div class="signature-block" style="background: #fff3cd; border: 2px solid #ffc107;">
+            <h4>For Office Use Only</h4>
+            <p><span class="checkbox"></span> User Account Created: ☐ Yes ☐ No</p>
+            <p><span class="checkbox"></span> Training Completed: ☐ Yes ☐ No</p>
+            <p><span class="checkbox"></span> System Access Granted: ☐ Yes ☐ No</p>
+            <p style="margin-top: 20px;">
+                Processed by: <span class="signature-line"></span>
+                Date: <span class="signature-line"></span>
+            </p>
+        </div>
+    </section>
+
+    <!-- Document Control Footer -->
+    <div class="footer">
+        <p><strong>Document Control</strong></p>
+        <p>Version: 1.0 | Effective Date: September 2025 | Review Date: August 2026</p>
+        <p>Classification: Internal Use Only | Distribution: Authorized Personnel Only</p>
+        <p>© 2025 eRFX System - Business Process Documentation. All Rights Reserved.</p>
+    </div>
+</body>
+</html>
