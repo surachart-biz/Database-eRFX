@@ -21,7 +21,7 @@
         }
         
         .cover-page {
-            height: 100vh;
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -31,6 +31,13 @@
             border: 3px solid #003366;
             padding: 40px;
             margin-bottom: 40px;
+        }
+        
+        @media print {
+            .cover-page {
+                height: 100vh;
+                margin-bottom: 0;
+            }
         }
         
         h1 {
@@ -134,10 +141,31 @@
         }
         
         .signature-line {
-            border-bottom: 1px solid #000;
-            width: 300px;
-            margin: 20px 0;
+            border-bottom: 1px dotted #000;
+            width: 250px;
+            margin: 10px 0;
             display: inline-block;
+        }
+        
+        .signature-table {
+            width: 100%;
+            border: none;
+        }
+        
+        .signature-table td {
+            border: none;
+            padding: 8px 10px;
+            vertical-align: bottom;
+        }
+        
+        @media print {
+            .signature-section {
+                page-break-before: always;
+                margin-top: 0;
+            }
+            .signature-block {
+                page-break-inside: avoid;
+            }
         }
         
         .checkbox {
@@ -199,7 +227,7 @@
         <h3 style="color: #666;">User Agreement & Acknowledgment</h3>
         <div style="margin-top: 60px;">
             <p><strong>Version:</strong> 1.0</p>
-            <p><strong>Date:</strong> September 2025</p>
+            <p><strong>Date:</strong> August 2025</p>
         </div>
     </div>
 
@@ -455,37 +483,37 @@
             </thead>
             <tbody>
                 <tr>
-                    <td>ADMIN</td>
+                    <td>Admin</td>
                     <td>User management, Exchange rates configuration</td>
                     <td>N/A</td>
                 </tr>
                 <tr>
-                    <td>REQUESTER</td>
+                    <td>Requester</td>
                     <td>Create RFQ, Track status, Respond to feedback</td>
                     <td>1</td>
                 </tr>
                 <tr>
-                    <td>APPROVER</td>
+                    <td>Approver</td>
                     <td>Review and approve RFQ requests</td>
                     <td>2</td>
                 </tr>
                 <tr>
-                    <td>PURCHASING</td>
-                    <td>Manage suppliers, Process approved RFQs, Handle Q&A</td>
+                    <td>Purchasing</td>
+                    <td>Manage suppliers, Process approved RFQs, Handle Q&A, Review Supplier Registration (1st Check)</td>
                     <td>2</td>
                 </tr>
                 <tr>
-                    <td>PURCHASING APPROVER</td>
-                    <td>Final approval of purchasing decisions, Supplier registration approval</td>
+                    <td>Purchasing Approver</td>
+                    <td>Final approval of purchasing decisions, Supplier registration approval (2nd Check), Re-bid decision</td>
                     <td>1</td>
                 </tr>
                 <tr>
-                    <td>SUPPLIER</td>
+                    <td>Supplier</td>
                     <td>Submit quotations, Respond to RFQs, Ask questions</td>
                     <td>3</td>
                 </tr>
                 <tr>
-                    <td>MANAGING DIRECTOR</td>
+                    <td>Managing Director</td>
                     <td>View dashboards and reports only</td>
                     <td>N/A</td>
                 </tr>
@@ -555,19 +583,26 @@
             </tbody>
         </table>
 
-        <h3>5.3 Supplier Registration Process (2-Step Approval)</h3>
+        <h3>5.3 Supplier Registration Process (3-Step Process via Invitation)</h3>
         <div class="process-flow">
-            <h4>Step 1: Initial Review by PURCHASING</h4>
+            <h4>Step 1: Supplier Registration via Invitation</h4>
             <ul>
-                <li>Review supplier documents and information</li>
+                <li>Supplier receives invitation from PURCHASING</li>
+                <li>Completes registration form with required documents</li>
+                <li>Submits for review → Status: Pending</li>
+            </ul>
+
+            <h4>Step 2: First Review by PURCHASING</h4>
+            <ul>
+                <li>Reviews supplier documents and information</li>
                 <li>Accept → Send to PURCHASING APPROVER</li>
                 <li>Declined → Return to Supplier for corrections</li>
             </ul>
             
-            <h4>Step 2: Final Approval by PURCHASING APPROVER</h4>
+            <h4>Step 3: Final Approval by PURCHASING APPROVER</h4>
             <ul>
                 <li>Final review of supplier registration</li>
-                <li>Accept → Completed, send invitation emails</li>
+                <li>Accept → Completed, send RFQ invitation emails to all contacts</li>
                 <li>Declined → Return to PURCHASING for review</li>
             </ul>
         </div>
@@ -575,15 +610,16 @@
         <h3>5.4 Re-bid Process</h3>
         <div class="process-flow">
             <ol>
-                <li>PURCHASING APPROVER determines need for re-bid</li>
-                <li>Request sent back to PURCHASING</li>
+                <li>PURCHASING APPROVER determines need for re-bid with reason</li>
+                <li>RFQ status changes to Re-bid, sent back to PURCHASING</li>
+                <li>Previous quotations are archived</li>
                 <li>PURCHASING invites additional suppliers or extends deadline</li>
-                <li>New quotation round begins</li>
-                <li>Process continues from quotation submission</li>
+                <li>New quotation round begins with fresh timeline</li>
+                <li>Process continues from quotation submission phase</li>
             </ol>
         </div>
 
-        <h3>5.5 Q&A Process</h3>
+        <h3>5.5 Q&A Process (Linear Thread per Supplier)</h3>
         <div class="process-flow">
             <ol>
                 <li>Supplier submits question through system</li>
@@ -592,6 +628,7 @@
                 <li>PURCHASING responds to question</li>
                 <li>Response status changes to "Responded"</li>
                 <li>Supplier receives notification of response</li>
+                <li>Thread continues linearly for each supplier</li>
             </ol>
         </div>
     </section>
@@ -653,34 +690,44 @@
         <div class="highlight-box">
             <h4>Key Points:</h4>
             <ul>
-                <li><strong>Lock Time:</strong> Exchange rates are locked at Submission Deadline</li>
-                <li><strong>Rate Source:</strong> Uses active rate as of Submission Deadline</li>
-                <li><strong>Comparison:</strong> Compare prices using ConvertedPrice (not original)</li>
-                <li><strong>Ranking:</strong> Always rank by converted price</li>
-                <li><strong>Display:</strong> Show both original and converted prices</li>
-                <li><strong>Immutable:</strong> Locked rates never change, even with new rate updates</li>
+                <li><strong>Lock Time:</strong> Exchange rates are locked at the exact date and time when quotation submission deadline is reached</li>
+                <li><strong>Rate Source:</strong> Uses active exchange rate at the moment of deadline</li>
+                <li><strong>Comparison:</strong> All price comparisons use converted prices (base currency)</li>
+                <li><strong>Ranking:</strong> Always rank by converted price for fairness</li>
+                <li><strong>Display:</strong> Always show both original currency price and converted price</li>
+                <li><strong>Immutable:</strong> Once locked, rates never change even if new rates are uploaded</li>
             </ul>
             <h4>Benefits:</h4>
             <ul>
-                <li>Fair comparison (everyone uses same rate)</li>
-                <li>Transparent (see both original and converted)</li>
-                <li>Predictable (Supplier knows deadline and rate lock)</li>
-                <li>Auditable (history of rate locks)</li>
+                <li>Fair comparison (all suppliers use same exchange rate)</li>
+                <li>Transparent (both original and converted prices visible)</li>
+                <li>Predictable (Suppliers know exact deadline and lock mechanism)</li>
+                <li>Auditable (complete history of rate locks maintained)</li>
             </ul>
         </div>
 
         <h3>6.7 Winner Selection Rules</h3>
-        <ul>
-            <li><strong>System Auto-highlight:</strong>
-                <ul>
-                    <li>Purchase RFQ: Lowest price highlighted</li>
-                    <li>Sales RFQ: Highest price highlighted</li>
-                </ul>
-            </li>
-            <li><strong>Manual Override:</strong> If selecting different from system highlight, reason must be provided</li>
-            <li><strong>Selection Requirement:</strong> Must select 1 winner per item</li>
-            <li><strong>Final Approval:</strong> PURCHASING APPROVER can change selection with reason</li>
-        </ul>
+        <div class="highlight-box">
+            <h4>System Auto-highlight (Grey):</h4>
+            <ul>
+                <li><strong>Purchase RFQ:</strong> System highlights lowest price supplier</li>
+                <li><strong>Sales RFQ:</strong> System highlights highest price supplier</li>
+            </ul>
+            
+            <h4>Manual Selection Process (Green):</h4>
+            <ol>
+                <li><strong>PURCHASING selects winner:</strong> Can override system recommendation</li>
+                <li><strong>Override Justification:</strong> If selection differs from system highlight, reason is mandatory</li>
+                <li><strong>PURCHASING APPROVER Review:</strong> Can change selection with justification</li>
+                <li><strong>Winner per Item:</strong> Must select exactly 1 winner per item</li>
+            </ol>
+            
+            <h4>Visual Indicators:</h4>
+            <ul>
+                <li><strong>Grey Highlight:</strong> System-recommended winner</li>
+                <li><strong>Green Highlight:</strong> Manually selected winner by PURCHASING</li>
+            </ul>
+        </div>
 
         <h3>6.8 Optional Fields for Suppliers</h3>
         <p>PURCHASING can require suppliers to provide:</p>
@@ -771,32 +818,38 @@
         </ul>
 
         <h3>7.3 Supplier Rules & Notifications</h3>
-        <p><strong>Rules:</strong></p>
+        <h4>Rules:</h4>
         <ul>
-            <li>Can change decision before deadline (from "Not Participating" to "Participating")</li>
-            <li>Can modify quotation until deadline</li>
-            <li>Multiple contacts allowed, but only the one who accepts becomes responsible</li>
-            <li>System auto-declines if no response by Required Quotation Date</li>
+            <li><strong>Multi-Contact Management:</strong> When supplier has multiple contacts, the person who clicks "Accept" becomes responsible for that RFQ</li>
+            <li><strong>Decision Flexibility:</strong> Can change from "Not Participating" to "Participating" before deadline</li>
+            <li><strong>Quotation Modification:</strong> Can edit quotation until submission deadline</li>
+            <li><strong>Auto-Decline:</strong> System automatically declines if no response by Required Quotation Date</li>
         </ul>
         
-        <p><strong>Notifications:</strong></p>
+        <h4>Notifications:</h4>
         <ul>
-            <li>2 days: Reminder if no action</li>
+            <li>2 days: Reminder if no action taken</li>
             <li>24 hours: Alert before deadline</li>
-            <li>Auto-decline if no response by deadline</li>
+            <li>Auto-decline notification if no response by deadline</li>
         </ul>
 
         <h3>7.4 Ontime/Delay Status System</h3>
-        <p><strong>IMPORTANT:</strong> Status shows per role perspective</p>
-        
         <div class="highlight-box">
+            <h4>Timer Reset Mechanism:</h4>
+            <ul>
+                <li>Timer resets when RFQ moves to new actor</li>
+                <li>Each role has independent SLA timer</li>
+                <li>Previous role's delay doesn't affect next role's timer</li>
+                <li>Status displays from each role's perspective</li>
+            </ul>
+            
             <h4>Example Timeline:</h4>
             <ul>
                 <li><strong>Day 0:</strong> Requester → Approver (start counting)</li>
                 <li><strong>Day 3:</strong> Approver approved (late 1 day) → Purchasing</li>
                 <ul style="margin-left: 20px;">
                     <li>Approver view: <span class="status-box delay">DELAY</span> (exceeded 2 days)</li>
-                    <li>Purchasing view: <span class="status-box ontime">ONTIME</span> (just received)</li>
+                    <li>Purchasing view: <span class="status-box ontime">ONTIME</span> (just received, timer reset)</li>
                 </ul>
             </ul>
         </div>
@@ -828,11 +881,17 @@
         </table>
 
         <h3>7.6 Re-bid Process Timeline</h3>
-        <ul>
-            <li>PURCHASING APPROVER decision: 1 day</li>
-            <li>PURCHASING re-invite suppliers: 2 days</li>
-            <li>New quotation period: As defined by PURCHASING</li>
-        </ul>
+        <div class="process-flow">
+            <h4>Re-bid Workflow:</h4>
+            <ol>
+                <li><strong>PURCHASING APPROVER Decision:</strong> Determines need for re-bid with justification (1 day)</li>
+                <li><strong>Status Change:</strong> RFQ returns to PURCHASING with Re-bid status</li>
+                <li><strong>Archive Previous Round:</strong> All previous quotations are archived</li>
+                <li><strong>PURCHASING Action:</strong> Re-invite suppliers or add new ones (2 days)</li>
+                <li><strong>New Quotation Period:</strong> Fresh timeline as defined by PURCHASING</li>
+                <li><strong>Restart Process:</strong> Continues from quotation submission phase</li>
+            </ol>
+        </div>
     </section>
 
     <!-- Section 8: Data Privacy & Security -->
@@ -1031,20 +1090,22 @@
             </ul>
         </div>
 
-        <h3>10.3 Special Change Scenarios</h3>
+                    <h3>10.3 Special Change Scenarios</h3>
         <div class="highlight-box">
             <h4>Deadline Extension/Reduction:</h4>
             <ul>
-                <li>PURCHASING can request with reason</li>
-                <li>Notifications sent to all affected suppliers</li>
-                <li>Must not exceed Required Quotation Date</li>
+                <li>Only PURCHASING can request deadline changes with justification</li>
+                <li>Must not exceed Required Quotation Date set by Requester</li>
+                <li>Automatic notifications sent to all affected suppliers</li>
+                <li>System logs all changes with timestamp and reason</li>
             </ul>
             
             <h4>Re-bid Approval:</h4>
             <ul>
-                <li>PURCHASING APPROVER initiates</li>
+                <li>PURCHASING APPROVER initiates with justification</li>
                 <li>Returns to PURCHASING for new round</li>
                 <li>All previous quotations archived</li>
+                <li>Fresh timeline and notification cycle begins</li>
             </ul>
             
             <h4>Supplier Registration Revision:</h4>
@@ -1052,6 +1113,7 @@
                 <li>Can be requested at either approval step</li>
                 <li>Supplier notified with specific requirements</li>
                 <li>Resubmission starts approval process again</li>
+                <li>SLA timer resets upon resubmission</li>
             </ul>
         </div>
 
@@ -1143,24 +1205,53 @@
 
         <h3>11.2 Role-Specific Training Topics</h3>
         
+        <h4>REQUESTER Training:</h4>
+        <ul>
+            <li>Creating and submitting RFQs</li>
+            <li>Understanding approval hierarchy</li>
+            <li>Managing draft status and auto-deletion</li>
+            <li>Responding to feedback and revisions</li>
+        </ul>
+        
+        <h4>APPROVER Training:</h4>
+        <ul>
+            <li>Review and approval workflows</li>
+            <li>Decision criteria and justification</li>
+            <li>SLA compliance monitoring</li>
+            <li>Delegation procedures</li>
+        </ul>
+        
         <h4>PURCHASING Training:</h4>
         <ul>
+            <li>Supplier registration first review process</li>
             <li>2-step Supplier approval process</li>
             <li>Winner selection with justification</li>
             <li>Managing Q&A with Suppliers</li>
             <li>Re-bid scenarios and procedures</li>
             <li>Optional fields configuration</li>
             <li>Deadline modification process</li>
+            <li>Multi-contact supplier management</li>
+            <li>Exchange rate lock mechanism</li>
+        </ul>
+        
+        <h4>PURCHASING APPROVER Training:</h4>
+        <ul>
+            <li>Final supplier registration approval</li>
+            <li>Winner selection review and override</li>
+            <li>Re-bid decision criteria</li>
+            <li>Justification requirements</li>
         </ul>
         
         <h4>SUPPLIER Training:</h4>
         <ul>
-            <li>Multi-contact management</li>
-            <li>Changing participation decision</li>
+            <li>Multi-contact management and responsibility assignment</li>
+            <li>Primary vs Secondary contact differences</li>
+            <li>Changing participation decision before deadline</li>
             <li>Q&A feature usage</li>
             <li>Quotation modification before deadline</li>
             <li>Understanding exchange rate locks</li>
             <li>Document upload requirements</li>
+            <li>Assigning quotation responsibility</li>
         </ul>
 
         <h3>11.3 Training Schedule Matrix</h3>
@@ -1444,6 +1535,16 @@
                     <td>&lt; 10%</td>
                     <td>Re-bid requests / Total RFQs</td>
                 </tr>
+                <tr>
+                    <td>Draft Auto-delete Rate</td>
+                    <td>&lt; 5%</td>
+                    <td>Auto-deleted drafts / Total drafts created</td>
+                </tr>
+                <tr>
+                    <td>Supplier Response Rate</td>
+                    <td>&gt; 80%</td>
+                    <td>(Accept + Decline) / Total invitations sent</td>
+                </tr>
             </tbody>
         </table>
     </section>
@@ -1465,6 +1566,8 @@
             <p><span class="checkbox"></span> I understand the Re-bid process and procedures</p>
             <p><span class="checkbox"></span> I understand the Q&A process between Suppliers and Purchasing</p>
             <p><span class="checkbox"></span> I understand the exchange rate lock mechanism</p>
+            <p><span class="checkbox"></span> I understand the Multi-contact system for Suppliers</p>
+            <p><span class="checkbox"></span> I understand that exchange rates are locked at submission deadline</p>
             <p><span class="checkbox"></span> I will maintain confidentiality of information</p>
             <p><span class="checkbox"></span> I will not share my login credentials with others</p>
             <p><span class="checkbox"></span> I will immediately report any security issues</p>
@@ -1476,23 +1579,22 @@
         <!-- Signature Block 1: Employee Thai Union Group -->
         <div class="signature-block">
             <h4>Employee - Thai Union Group</h4>
-            <table style="border: none;">
+            <table class="signature-table">
                 <tr>
-                    <td style="border: none;">Name: <span class="signature-line"></span></td>
-                    <td style="border: none;">Employee ID: <span class="signature-line"></span></td>
+                    <td>Name: ........................................</td>
+                    <td>Employee ID: ........................................</td>
                 </tr>
                 <tr>
-                    <td style="border: none;">Department: <span class="signature-line"></span></td>
-                    <td style="border: none;">Position: <span class="signature-line"></span></td>
+                    <td>Department: ........................................</td>
+                    <td>Position: ........................................</td>
                 </tr>
                 <tr>
-                    <td style="border: none;">Email: <span class="signature-line"></span></td>
-                    <td style="border: none;">Phone: <span class="signature-line"></span></td>
+                    <td>Email: ........................................</td>
+                    <td>Phone: ........................................</td>
                 </tr>
                 <tr>
-                    <td colspan="2" style="border: none;">
-                        Signature: <span class="signature-line"></span>
-                        Date: <span class="signature-line"></span>
+                    <td colspan="2" style="padding-top: 20px;">
+                        Signature: ........................................ Date: ........................................
                     </td>
                 </tr>
             </table>
@@ -1501,15 +1603,14 @@
         <!-- Signature Block 2: Employee Biz Dimension -->
         <div class="signature-block">
             <h4>Employee - Biz Dimension</h4>
-            <table style="border: none;">
+            <table class="signature-table">
                 <tr>
-                    <td style="border: none;">Name: <span class="signature-line"></span></td>
-                    <td style="border: none;">Position: <span class="signature-line"></span></td>
+                    <td>Name: ........................................</td>
+                    <td>Position: ........................................</td>
                 </tr>
                 <tr>
-                    <td colspan="2" style="border: none;">
-                        Signature: <span class="signature-line"></span>
-                        Date: <span class="signature-line"></span>
+                    <td colspan="2" style="padding-top: 20px;">
+                        Signature: ........................................ Date: ........................................
                     </td>
                 </tr>
             </table>
@@ -1518,15 +1619,14 @@
         <!-- Signature Block 3: Employee IT Biz Dimension -->
         <div class="signature-block">
             <h4>Employee - IT Biz Dimension</h4>
-            <table style="border: none;">
+            <table class="signature-table">
                 <tr>
-                    <td style="border: none;">Name: <span class="signature-line"></span></td>
-                    <td style="border: none;">Position: <span class="signature-line"></span></td>
+                    <td>Name: ........................................</td>
+                    <td>Position: ........................................</td>
                 </tr>
                 <tr>
-                    <td colspan="2" style="border: none;">
-                        Signature: <span class="signature-line"></span>
-                        Date: <span class="signature-line"></span>
+                    <td colspan="2" style="padding-top: 20px;">
+                        Signature: ........................................ Date: ........................................
                     </td>
                 </tr>
             </table>
@@ -1535,12 +1635,11 @@
         <!-- For Office Use Only -->
         <div class="signature-block" style="background: #fff3cd; border: 2px solid #ffc107;">
             <h4>For Office Use Only</h4>
-            <p><span class="checkbox"></span> User Account Created: ☐ Yes ☐ No</p>
-            <p><span class="checkbox"></span> Training Completed: ☐ Yes ☐ No</p>
-            <p><span class="checkbox"></span> System Access Granted: ☐ Yes ☐ No</p>
+            <p>User Account Created: ☐ Yes ☐ No</p>
+            <p>Training Completed: ☐ Yes ☐ No</p>
+            <p>System Access Granted: ☐ Yes ☐ No</p>
             <p style="margin-top: 20px;">
-                Processed by: <span class="signature-line"></span>
-                Date: <span class="signature-line"></span>
+                Processed by: ........................................ Date: ........................................
             </p>
         </div>
     </section>
@@ -1548,7 +1647,7 @@
     <!-- Document Control Footer -->
     <div class="footer">
         <p><strong>Document Control</strong></p>
-        <p>Version: 1.0 | Effective Date: September 2025 | Review Date: August 2026</p>
+        <p>Version: 1.0 | Effective Date: August 2025 | Review Date: February 2026</p>
         <p>Classification: Internal Use Only | Distribution: Authorized Personnel Only</p>
         <p>© 2025 eRFX System - Business Process Documentation. All Rights Reserved.</p>
     </div>
