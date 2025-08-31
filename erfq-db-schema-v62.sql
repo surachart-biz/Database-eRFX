@@ -949,29 +949,6 @@ CREATE TABLE "Notifications" (
 
 COMMENT ON TABLE "Notifications" IS 'การแจ้งเตือน (Enhanced for SMS & SignalR)';
 
--- 9.2 NotificationQueue
-CREATE TABLE "NotificationQueue" (
-  "Id" BIGSERIAL PRIMARY KEY,
-  "NotificationId" BIGINT REFERENCES "Notifications"("Id"),
-  "Channel" VARCHAR(20) NOT NULL,
-  "Recipient" VARCHAR(255) NOT NULL,
-  "Subject" VARCHAR(500),
-  "Content" TEXT,
-  "Priority" VARCHAR(20) DEFAULT 'NORMAL',
-  "Status" VARCHAR(20) DEFAULT 'PENDING',
-  "Attempts" INT DEFAULT 0,
-  "MaxAttempts" INT DEFAULT 3,
-  "ScheduledFor" TIMESTAMP,
-  "ProcessedAt" TIMESTAMP,
-  "LastError" TEXT,
-  "LastAttemptAt" TIMESTAMP,
-  "CreatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  
-  CONSTRAINT "chk_queue_status" CHECK ("Status" IN ('PENDING','PROCESSING','SENT','FAILED'))
-);
-
-COMMENT ON TABLE "NotificationQueue" IS 'คิวการส่งการแจ้งเตือน';
-
 -- =============================================
 -- SECTION 10: FINANCIAL & EXCHANGE RATES
 -- =============================================
@@ -1130,49 +1107,6 @@ COMMENT ON TABLE "ErrorLogs" IS 'บันทึก Business Critical Errors';
 -- SECTION 13: INFRASTRUCTURE TABLES
 -- =============================================
 
--- 13.1 wolverine_incoming_envelopes
-CREATE TABLE "wolverine_incoming_envelopes" (
-  "id" UUID PRIMARY KEY,
-  "status" VARCHAR(25) NOT NULL,
-  "owner_id" INT NOT NULL,
-  "execution_time" TIMESTAMP DEFAULT NULL,
-  "attempts" INT DEFAULT 0,
-  "body" JSONB NOT NULL,
-  "message_type" VARCHAR(250) NOT NULL,
-  "received_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-COMMENT ON TABLE "wolverine_incoming_envelopes" IS 'Wolverine incoming message queue';
-
--- 13.2 wolverine_outgoing_envelopes
-CREATE TABLE "wolverine_outgoing_envelopes" (
-  "id" UUID PRIMARY KEY,
-  "destination" VARCHAR(500) NOT NULL,
-  "deliver_by" TIMESTAMP,
-  "body" JSONB NOT NULL,
-  "message_type" VARCHAR(500) NOT NULL,
-  "attempts" INT DEFAULT 0,
-  "status" VARCHAR(50) DEFAULT 'Pending',
-  "owner_id" INT,
-  "execution_time" TIMESTAMP,
-  "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-COMMENT ON TABLE "wolverine_outgoing_envelopes" IS 'Wolverine outbox for reliable messaging';
-
--- 13.3 wolverine_scheduled_envelopes
-CREATE TABLE "wolverine_scheduled_envelopes" (
-  "id" UUID PRIMARY KEY,
-  "scheduled_time" TIMESTAMP NOT NULL,
-  "body" JSONB NOT NULL,
-  "message_type" VARCHAR(500) NOT NULL,
-  "destination" VARCHAR(500),
-  "attempts" INT DEFAULT 0,
-  "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-COMMENT ON TABLE "wolverine_scheduled_envelopes" IS 'Wolverine scheduled messages';
-
 -- 13.4 SignalRConnections
 CREATE TABLE "SignalRConnections" (
   "ConnectionId" VARCHAR(100) PRIMARY KEY,
@@ -1262,8 +1196,6 @@ CREATE INDEX "idx_qna_messages_unread" ON "QnAMessages"("ThreadId", "IsRead") WH
 CREATE INDEX "idx_notifications_user" ON "Notifications"("UserId") WHERE "IsRead" = false;
 CREATE INDEX "idx_notifications_contact" ON "Notifications"("ContactId") WHERE "IsRead" = false;
 CREATE INDEX "idx_notifications_rfq" ON "Notifications"("RfqId");
-CREATE INDEX "idx_notification_queue_pending" ON "NotificationQueue"("Status") WHERE "Status" = 'PENDING';
-CREATE INDEX "idx_notification_queue_scheduled" ON "NotificationQueue"("ScheduledFor") WHERE "Status" = 'PENDING';
 
 -- Exchange Rate Indexes
 CREATE INDEX "idx_exchange_rates_active" ON "ExchangeRates"("FromCurrencyId", "ToCurrencyId", "EffectiveDate") 
@@ -1293,12 +1225,6 @@ CREATE INDEX "idx_subcategory_doc_requirements" ON "SubcategoryDocRequirements"(
 CREATE INDEX "idx_rfqs_dashboard" ON "Rfqs"("Status", "CompanyId", "CurrentActorId");
 CREATE INDEX "idx_rfqs_date_range" ON "Rfqs"("CreatedAt", "Status");
 CREATE INDEX "idx_notifications_unread" ON "Notifications"("UserId", "IsRead") WHERE "IsRead" = false;
-
--- Wolverine Message Queue Indexes
-CREATE INDEX "idx_wolverine_incoming_status" ON "wolverine_incoming_envelopes"("status");
-CREATE INDEX "idx_wolverine_incoming_execution" ON "wolverine_incoming_envelopes"("execution_time");
-CREATE INDEX "idx_wolverine_outgoing_status" ON "wolverine_outgoing_envelopes"("status");
-CREATE INDEX "idx_wolverine_scheduled_time" ON "wolverine_scheduled_envelopes"("scheduled_time");
 
 -- SignalR Connection Indexes
 CREATE INDEX "idx_signalr_connections_user" ON "SignalRConnections"("UserId") WHERE "UserId" IS NOT NULL;
