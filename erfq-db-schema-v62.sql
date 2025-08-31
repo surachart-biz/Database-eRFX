@@ -1104,27 +1104,6 @@ CREATE TABLE "ErrorLogs" (
 COMMENT ON TABLE "ErrorLogs" IS 'บันทึก Business Critical Errors';
 
 -- =============================================
--- SECTION 13: INFRASTRUCTURE TABLES
--- =============================================
-
--- 13.4 SignalRConnections
-CREATE TABLE "SignalRConnections" (
-  "ConnectionId" VARCHAR(100) PRIMARY KEY,
-  "UserType" VARCHAR(20) NOT NULL,
-  "UserId" BIGINT,
-  "ContactId" BIGINT,
-  "ConnectedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  "LastPingAt" TIMESTAMP,
-  "UserAgent" TEXT,
-  "IpAddress" VARCHAR(45),
-  "IsActive" BOOLEAN DEFAULT TRUE,
-  
-  CONSTRAINT "chk_signalr_user_type" CHECK ("UserType" IN ('Employee', 'SupplierContact'))
-);
-
-COMMENT ON TABLE "SignalRConnections" IS 'Track SignalR connections for real-time features';
-
--- =============================================
 -- INDEXES FOR PERFORMANCE (Complete v6.2)
 -- =============================================
 
@@ -1225,11 +1204,6 @@ CREATE INDEX "idx_subcategory_doc_requirements" ON "SubcategoryDocRequirements"(
 CREATE INDEX "idx_rfqs_dashboard" ON "Rfqs"("Status", "CompanyId", "CurrentActorId");
 CREATE INDEX "idx_rfqs_date_range" ON "Rfqs"("CreatedAt", "Status");
 CREATE INDEX "idx_notifications_unread" ON "Notifications"("UserId", "IsRead") WHERE "IsRead" = false;
-
--- SignalR Connection Indexes
-CREATE INDEX "idx_signalr_connections_user" ON "SignalRConnections"("UserId") WHERE "UserId" IS NOT NULL;
-CREATE INDEX "idx_signalr_connections_contact" ON "SignalRConnections"("ContactId") WHERE "ContactId" IS NOT NULL;
-CREATE INDEX "idx_signalr_connections_active" ON "SignalRConnections"("IsActive") WHERE "IsActive" = true;
 
 -- =============================================
 -- END OF DATABASE SCHEMA
