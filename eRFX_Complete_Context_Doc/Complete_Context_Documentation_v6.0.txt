@@ -1,0 +1,694 @@
+# 📚 **eRFX System - Complete Context Documentation v6.0**
+**สำหรับ Claude ใน New Chat - อ่านทั้งหมดอย่างละเอียดก่อนตอบคำถาม**
+
+## **🎯 SYSTEM CORE DEFINITION**
+```yaml
+System Name: eRFX (Electronic Request for Quotation)
+Architecture: Clean Architecture + CQRS-lite + Hybrid Event-driven
+Type: Modular Monolith (can evolve to microservices)
+Database: PostgreSQL 14+ (Database-First approach)
+Total Tables: 50 tables (confirmed from erfq-db-schema-v62.sql)
+Scale: Enterprise B2B Procurement
+Users: Multi-company, Multi-role support (1000+ concurrent)
+Language: Thai/English (Templates stored in DB)
+Currency: Multi-currency with monthly exchange rates
+Timezone: Asia/Bangkok (UTC+7)
+```
+
+## **⚠️ CRITICAL ARCHITECTURE RULES**
+
+### **SEPARATE READ/WRITE MODELS - ต้องแยกชัดเจน 100%**
+```csharp
+// ✅ WRITE Operations - ใช้ EF Core เท่านั้น
+// - Connection: WriteConnection (erfx_write user)
+// - Pattern: Commands + CommandHandlers
+// - Models: Domain Entities (from Generated folder)
+// - Operations: Add, Update, Delete
+// - Transaction: Always use transactions
+
+// ✅ READ Operations - ใช้ Dapper เท่านั้น
+// - Connection: ReadConnection (erfx_read user)
+// - Pattern: Queries + QueryHandlers
+// - Models: ViewModels (NEVER use Entities)
+// - Operations: SELECT only
+// - Cache: Always cache with IMemoryCache or Redis
+```
+
+## **🔧 COMPLETE CONFIGURATION**
+
+### **appsettings.json**
+```json
+{
+  "ConnectionStrings": {
+    "WriteConnection": "Host=localhost;Port=5432;Database=erfx;Username=erfx_write;Password=write_pwd;Command Timeout=30;Maximum Pool Size=50",
+    "ReadConnection": "Host=localhost;Port=5432;Database=erfx;Username=erfx_read;Password=read_pwd;Command Timeout=30;Maximum Pool Size=100",
+    "RedisConnection": "localhost:6379,abortConnect=false,connectTimeout=5000,syncTimeout=5000"
+  },
+  
+  "Jwt": {
+    "Issuer": "eRFX",
+    "Audience": "eRFX-Users",
+    "SecretKey": "your-256-bit-secret-key-must-be-at-least-32-characters-long",
+    "ExpiryMinutes": 30,
+    "RefreshTokenExpiryDays": 7,
+    "ClockSkewMinutes": 5
+  },
+  
+  "SignalR": {
+    "UseRedis": false,
+    "EnableDetailedErrors": false,
+    "MaximumReceiveMessageSize": 32768,
+    "StreamBufferCapacity": 10,
+    "KeepAliveInterval": "00:00:15",
+    "ClientTimeoutInterval": "00:00:30"
+  },
+  
+  "Wolverine": {
+    "ConnectionString": "Host=localhost;Port=5432;Database=erfx;Username=erfx_app;Password=app_pwd",
+    "SchemaName": "messaging",
+    "AutoCreateSchema": true,
+    "NodeId": "erfx-node-1",
+    "DurabilityMode": "Solo"
+  },
+  
+  "Caching": {
+    "Provider": "Memory",
+    "DefaultExpirationMinutes": 5,
+    "SlidingExpirationMinutes": 2,
+    "Redis": {
+      "Enabled": false,
+      "InstanceName": "erfx:"
+    }
+  },
+  
+  "Email": {
+    "Provider": "SendGrid",
+    "SendGrid": {
+      "ApiKey": "SG.xxx",
+      "FromEmail": "noreply@erfx.com",
+      "FromName": "eRFX System"
+    }
+  },
+  
+  "Storage": {
+    "Provider": "AzureBlob",
+    "AzureBlob": {
+      "ConnectionString": "DefaultEndpointsProtocol=https;AccountName=xxx",
+      "ContainerName": "erfx-files"
+    },
+    "MaxFileSize": 31457280,
+    "AllowedExtensions": [".pdf", ".doc", ".docx", ".xls", ".xlsx"]
+  },
+  
+  "RateLimiting": {
+    "Internal": {
+      "PermitLimit": 1000,
+      "Window": "00:01:00",
+      "QueueLimit": 100
+    },
+    "Supplier": {
+      "PermitLimit": 100,
+      "Window": "00:01:00",
+      "QueueLimit": 10
+    }
+  },
+  
+  "Serilog": {
+    "MinimumLevel": {
+      "Default": "Information",
+      "Override": {
+        "Microsoft": "Warning",
+        "Microsoft.EntityFrameworkCore": "Warning"
+      }
+    },
+    "WriteTo": [
+      { "Name": "Console" },
+      {
+        "Name": "File",
+        "Args": {
+          "path": "logs/erfx-.txt",
+          "rollingInterval": "Day",
+          "retainedFileCountLimit": 30
+        }
+      }
+    ]
+  }
+}
+```
+
+**หมายเหตุ**: RoleResponseTimes, NotificationRules, EmailTemplates อยู่ใน Database (erfq-master-data-v61.sql)
+
+## **📁 PROJECT STRUCTURE**
+
+```
+eRFX/
+├── src/
+│   ├── 01-BuildingBlocks/
+│   │   ├── eRFX.BuildingBlocks.Abstractions/
+│   │   │   ├── CQRS/
+│   │   │   │   ├── ICommand.cs
+│   │   │   │   ├── ICommandHandler.cs
+│   │   │   │   ├── IQuery.cs
+│   │   │   │   └── IQueryHandler.cs
+│   │   │   └── Events/
+│   │   │       ├── IEvent.cs
+│   │   │       └── IEventHandler.cs
+│   │   └── eRFX.BuildingBlocks.Infrastructure/
+│   │       ├── CQRS/
+│   │       │   ├── CommandDispatcher.cs  # Custom, NO MediatR
+│   │       │   └── QueryDispatcher.cs
+│   │       └── Events/
+│   │           └── EventBus.cs
+│   │
+│   ├── 02-Shared/
+│   │   ├── eRFX.Shared.Abstractions/
+│   │   │   ├── Auth/
+│   │   │   │   ├── ICurrentUser.cs
+│   │   │   │   └── IJwtService.cs
+│   │   │   ├── Email/
+│   │   │   │   └── IEmailService.cs
+│   │   │   └── Storage/
+│   │   │       └── IFileStorageService.cs
+│   │   └── eRFX.Shared.Infrastructure/
+│   │       ├── Auth/
+│   │       │   ├── CurrentUserService.cs
+│   │       │   └── JwtService.cs
+│   │       └── Caching/
+│   │           ├── MemoryCacheService.cs
+│   │           └── RedisCacheService.cs
+│   │
+│   ├── 03-Modules/
+│   │   ├── RFQ/
+│   │   │   ├── eRFX.Modules.RFQ.Core/
+│   │   │   ├── eRFX.Modules.RFQ.Application/
+│   │   │   └── eRFX.Modules.RFQ.Infrastructure/
+│   │   ├── Supplier/
+│   │   ├── Quotation/
+│   │   ├── User/
+│   │   └── Notification/
+│   │
+│   ├── 04-API/
+│   │   └── eRFX.API/
+│   │       ├── Controllers/
+│   │       ├── Hubs/
+│   │       │   └── NotificationHub.cs
+│   │       ├── Authorization/
+│   │       │   ├── PermissionAuthorizationHandler.cs
+│   │       │   └── PermissionRequirement.cs
+│   │       ├── Filters/
+│   │       │   ├── AuditAttribute.cs
+│   │       │   └── RequirePermissionAttribute.cs
+│   │       ├── Middleware/
+│   │       │   ├── AudienceValidationMiddleware.cs
+│   │       │   └── AuditEnricherMiddleware.cs
+│   │       └── Program.cs
+│   │
+│   └── 05-Persistence/
+│       └── eRFX.Persistence/
+│           ├── Generated/          # DO NOT EDIT
+│           │   ├── Entities/
+│           │   └── ErfxDbContext.Generated.cs
+│           └── Extensions/          # SAFE TO EDIT
+│               └── EntityExtensions/
+│
+└── tests/
+    ├── 01-UnitTests/
+    ├── 02-IntegrationTests/
+    └── 03-FunctionalTests/
+```
+
+## **🗄️ DATABASE SCHEMA (50 Tables)**
+
+### **SECTION 1: MASTER DATA (16 Tables)**
+```sql
+Currencies, Countries, BusinessTypes, JobTypes
+Roles, RoleResponseTimes, Permissions, RolePermissions
+Categories, Subcategories, SubcategoryDocRequirements
+Incoterms, NotificationRules, Positions
+EmailTemplates, SupplierDocumentTypes
+```
+
+### **SECTION 2-12: Business Tables (34 Tables)**
+```sql
+-- Company & Organization (2)
+Companies, Departments
+
+-- User Management (4)
+Users, UserCompanyRoles, UserCategoryBindings, Delegations
+
+-- Supplier Management (4)
+Suppliers, SupplierContacts, SupplierCategories, SupplierDocuments
+
+-- RFQ Management (6)
+Rfqs, RfqItems, RfqDocuments
+RfqRequiredFields, PurchasingDocuments, RfqDeadlineHistory
+
+-- Workflow & Approval (2)
+RfqStatusHistory, RfqActorTimeline
+
+-- Quotation Management (6)
+RfqInvitations, RfqInvitationHistory, QuotationItems
+QuotationDocuments, RfqItemWinners, RfqItemWinnerOverrides
+
+-- Communication (2)
+QnAThreads, QnAMessages
+
+-- Notification (1)
+Notifications
+
+-- Financial (2)
+ExchangeRates, ExchangeRateHistory
+
+-- Authentication (2)
+RefreshTokens, LoginHistory
+
+-- System & Audit (3)
+ActivityLogs, SystemConfigurations, ErrorLogs
+```
+
+### **Tables ที่ห้ามสร้าง**
+```sql
+-- ❌ DO NOT CREATE
+NotificationQueue      -- ใช้ Wolverine
+SignalRConnections     -- ใช้ in-memory/Redis
+wolverine_*            -- Auto-created in "messaging" schema
+```
+
+## **🎭 SYSTEM ROLES & JWT CLAIMS**
+
+### **8 System Roles**
+1. **REQUESTER** - สร้าง/ส่ง RFQ
+2. **APPROVER** - ส่งต่อ RFQ (ไม่มี "Approve" มีแต่ผ่านต่อ)
+3. **PURCHASING** - ดำเนินการจัดซื้อ
+4. **PURCHASING_APPROVER** - อนุมัติผู้ชนะ
+5. **SUPPLIER** - เสนอราคา
+6. **ADMIN** - จัดการระบบ
+7. **SUPER_ADMIN** - Cross-company (1 คนเท่านั้น)
+8. **MANAGING_DIRECTOR** - Dashboard only
+
+### **JWT Claims Structure**
+```json
+{
+  "uid": "12345",           // User ID
+  "email": "user@co.th",
+  "name": "Full Name",
+  "role": "PURCHASING",     // Primary role
+  "cid": "1",              // Current company
+  "companies": "1,2,3",    // All accessible companies
+  "categories": "1,5,8",   // Bound categories (PURCHASING only)
+  "level": "2",           // Approval level (APPROVER only)
+  "dept": "10",           // Department ID
+  "lang": "th",           // Preferred language
+  "aud": "internal",      // Audience: internal/supplier
+  "jti": "unique-id"      // JWT ID
+}
+```
+
+## **💻 CORE IMPLEMENTATIONS**
+
+### **1. CurrentUserService - Multi-Company Support**
+```csharp
+public class CurrentUserService : ICurrentUser
+{
+    private readonly IHttpContextAccessor _httpContext;
+    private readonly IMemoryCache _cache;
+    
+    public long UserId => long.Parse(GetClaim("uid"));
+    public string Email => GetClaim("email");
+    public string Role => GetClaim("role");
+    
+    // Auto-switch company via header
+    public long CompanyId
+    {
+        get
+        {
+            // Check X-Company-Id header first
+            var headerCompany = _httpContext.HttpContext?.Request.Headers["X-Company-Id"].FirstOrDefault();
+            if (!string.IsNullOrEmpty(headerCompany))
+            {
+                var allowedCompanies = GetClaim("companies")?.Split(',') ?? Array.Empty<string>();
+                if (allowedCompanies.Contains(headerCompany))
+                    return long.Parse(headerCompany);
+            }
+            
+            // Default from JWT
+            return long.Parse(GetClaim("cid"));
+        }
+    }
+    
+    public List<long> GetUserCategories()
+    {
+        var categories = GetClaim("categories");
+        return string.IsNullOrEmpty(categories) 
+            ? new List<long>() 
+            : categories.Split(',').Select(long.Parse).ToList();
+    }
+}
+```
+
+### **2. Command Handler Pattern (WRITE)**
+```csharp
+public class CreateRfqCommandHandler : ICommandHandler<CreateRfqCommand, CreateRfqResult>
+{
+    private readonly ErfxDbContext _writeDb;  // EF Core + WriteConnection
+    private readonly IEventBus _eventBus;
+    private readonly ICurrentUser _currentUser;
+    
+    public async Task<CreateRfqResult> HandleAsync(CreateRfqCommand command, CancellationToken ct)
+    {
+        using var transaction = await _writeDb.Database.BeginTransactionAsync(ct);
+        
+        var rfq = new Rfq  // Domain Entity from Generated folder
+        {
+            ProjectName = command.ProjectName,
+            RequesterId = _currentUser.UserId,
+            CompanyId = _currentUser.CompanyId,
+            Status = "SAVE_DRAFT",
+            CreatedAt = DateTime.UtcNow
+        };
+        
+        _writeDb.Rfqs.Add(rfq);
+        await _writeDb.SaveChangesAsync(ct);
+        
+        await transaction.CommitAsync(ct);
+        
+        // Publish event after commit
+        await _eventBus.PublishAsync(new RfqCreatedEvent { RfqId = rfq.Id });
+        
+        return new CreateRfqResult { RfqId = rfq.Id };
+    }
+}
+```
+
+### **3. Query Handler Pattern (READ)**
+```csharp
+public class GetRfqListQueryHandler : IQueryHandler<GetRfqListQuery, PagedResult<RfqListViewModel>>
+{
+    private readonly IDbConnection _readDb;  // Dapper + ReadConnection
+    private readonly IMemoryCache _cache;
+    
+    public async Task<PagedResult<RfqListViewModel>> HandleAsync(GetRfqListQuery query, CancellationToken ct)
+    {
+        var cacheKey = $"rfq_list_{query.UserId}_{query.Page}";
+        if (_cache.TryGetValue(cacheKey, out PagedResult<RfqListViewModel> cached))
+            return cached;
+        
+        var sql = @"
+            SELECT 
+                r.""Id"" AS RfqId,
+                r.""RfqNumber"",
+                r.""ProjectName"",
+                r.""Status""
+            FROM ""Rfqs"" r
+            WHERE r.""RequesterId"" = @UserId
+            ORDER BY r.""CreatedAt"" DESC
+            LIMIT @PageSize OFFSET @Offset";
+        
+        var items = await _readDb.QueryAsync<RfqListViewModel>(sql, new  // ViewModel NOT Entity
+        {
+            UserId = query.UserId,
+            PageSize = query.PageSize,
+            Offset = (query.Page - 1) * query.PageSize
+        });
+        
+        var result = new PagedResult<RfqListViewModel>(items.ToList(), query.Page);
+        _cache.Set(cacheKey, result, TimeSpan.FromMinutes(5));
+        
+        return result;
+    }
+}
+```
+
+### **4. SignalR Hub - All Roles with Bell Notifications**
+```csharp
+public class NotificationHub : Hub
+{
+    private readonly IQueryDispatcher _queryDispatcher;
+    private readonly ICommandDispatcher _commandDispatcher;
+    private readonly IConnectionTracker _tracker;
+    
+    public override async Task OnConnectedAsync()
+    {
+        var userId = Context.User.GetUserId();
+        var role = Context.User.GetRole();
+        
+        // Track connection (in-memory or Redis)
+        await _tracker.AddConnectionAsync(userId, Context.ConnectionId);
+        
+        // Join groups
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"user_{userId}");
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"role_{role}");
+        
+        // Send initial unread count
+        var unreadCount = await _queryDispatcher.QueryAsync(
+            new GetUnreadCountQuery { UserId = userId });
+        await Clients.Caller.SendAsync("UnreadCount", unreadCount);
+        
+        // Send role-specific dashboard
+        await SendDashboardByRole(role, userId);
+        
+        await base.OnConnectedAsync();
+    }
+    
+    // Bell notification methods
+    public async Task<NotificationListResult> GetNotifications(int page = 1)
+    {
+        return await _queryDispatcher.QueryAsync(new GetNotificationsQuery 
+        { 
+            UserId = Context.User.GetUserId(),
+            Page = page 
+        });
+    }
+    
+    public async Task MarkAsRead(long notificationId)
+    {
+        await _commandDispatcher.SendAsync(new MarkAsReadCommand
+        {
+            NotificationId = notificationId,
+            UserId = Context.User.GetUserId()
+        });
+        
+        // Update unread count
+        var count = await _queryDispatcher.QueryAsync(
+            new GetUnreadCountQuery { UserId = Context.User.GetUserId() });
+        await Clients.Caller.SendAsync("UnreadCount", count);
+    }
+    
+    public async Task MarkAllAsRead()
+    {
+        await _commandDispatcher.SendAsync(new MarkAllAsReadCommand
+        {
+            UserId = Context.User.GetUserId()
+        });
+        
+        await Clients.Caller.SendAsync("UnreadCount", 0);
+    }
+}
+```
+
+### **5. Permission-based Authorization**
+```csharp
+// Usage in Controller
+[HttpPost]
+[RequirePermission("RFQ_CREATE")]  // Check from RolePermissions table
+[Audit("RFQ", "CREATE", logRequest: true)]
+public async Task<IActionResult> CreateRfq(CreateRfqRequest request)
+{
+    // Clean controller - no permission check here
+}
+
+// Implementation
+public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionRequirement>
+{
+    protected override async Task HandleRequirementAsync(
+        AuthorizationHandlerContext context,
+        PermissionRequirement requirement)
+    {
+        // Check permission from DB
+        var sql = @"
+            SELECT EXISTS(
+                SELECT 1 
+                FROM ""UserCompanyRoles"" ucr
+                INNER JOIN ""RolePermissions"" rp ON ucr.""RoleId"" = rp.""RoleId""
+                INNER JOIN ""Permissions"" p ON rp.""PermissionId"" = p.""Id""
+                WHERE ucr.""UserId"" = @UserId
+                    AND p.""PermissionCode"" = @Permission
+            )";
+        
+        var hasPermission = await _db.QuerySingleAsync<bool>(sql, new
+        {
+            UserId = context.User.GetUserId(),
+            Permission = requirement.Permission
+        });
+        
+        if (hasPermission)
+            context.Succeed(requirement);
+    }
+}
+```
+
+### **6. Wolverine Configuration**
+```csharp
+builder.Host.UseWolverine((context, opts) =>
+{
+    // Use separate schema
+    opts.PersistMessagesWithPostgresql(connectionString, schema: "messaging");
+    
+    // Scheduled jobs
+    opts.ScheduledJobs(jobs =>
+    {
+        jobs.Schedule<ProcessNotificationRulesJob>().EveryMinutes(30);
+        jobs.Schedule<AutoDeclineExpiredRfqsJob>().EveryHours(1);
+        jobs.Schedule<DeleteOldDraftsJob>().Daily().At(2, 0);
+    });
+    
+    // Retry policies
+    opts.OnException<EmailServiceException>()
+        .RetryWithCooldown(
+            TimeSpan.FromSeconds(10),
+            TimeSpan.FromMinutes(1),
+            TimeSpan.FromMinutes(5))
+        .MaximumAttempts(3);
+});
+```
+
+### **7. Event-Driven Login History**
+```csharp
+// LoginCommandHandler - Clean, no login history here
+public class LoginCommandHandler : ICommandHandler<LoginCommand, LoginResult>
+{
+    public async Task<LoginResult> HandleAsync(LoginCommand command)
+    {
+        // Validate credentials
+        // Generate JWT
+        // Save refresh token
+        
+        // Publish event (don't handle history here)
+        await _eventBus.PublishAsync(new UserLoggedInEvent
+        {
+            UserId = user.Id,
+            IpAddress = command.IpAddress
+        });
+        
+        return new LoginResult { Token = token };
+    }
+}
+
+// Separate handler for login history
+public class LoginHistoryEventHandler : IEventHandler<UserLoggedInEvent>
+{
+    public async Task HandleAsync(UserLoggedInEvent evt)
+    {
+        // Save to LoginHistory table
+        _db.LoginHistory.Add(new LoginHistory
+        {
+            UserId = evt.UserId,
+            LoginAt = evt.Timestamp,
+            LoginIp = evt.IpAddress
+        });
+        await _db.SaveChangesAsync();
+    }
+}
+```
+
+### **8. SignalR Authentication**
+```csharp
+// Program.cs - CRITICAL for SignalR JWT
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        // Standard JWT validation
+        options.TokenValidationParameters = new TokenValidationParameters { /* ... */ };
+        
+        // CRITICAL: SignalR authentication from query string
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                
+                return Task.CompletedTask;
+            }
+        };
+    });
+```
+
+## **📋 VALIDATION CHECKLIST**
+
+```markdown
+□ Read operations ใช้ Dapper + ReadConnection?
+□ Write operations ใช้ EF Core + WriteConnection?
+□ ViewModels แยกจาก Entities?
+□ ใช้ CommandDispatcher/QueryDispatcher?
+□ Cache read operations ทุกครั้ง?
+□ SignalR ใช้ CQRS ไม่ใช่ direct DB?
+□ Permissions check ผ่าน Attributes?
+□ Login history ผ่าน Events?
+□ Wolverine ใช้ "messaging" schema?
+□ CurrentUserService สำหรับ user context?
+□ ไม่สร้าง NotificationQueue table?
+□ ไม่สร้าง SignalRConnections table?
+```
+
+## **❌ ANTI-PATTERNS - ห้ามทำ**
+
+```csharp
+// ❌ WRONG - EF Core for Read
+await _db.Rfqs.Where().ToListAsync();
+
+// ❌ WRONG - Direct DB in SignalR
+public async Task GetData()
+{
+    var data = await _db.Notifications.ToListAsync();
+}
+
+// ❌ WRONG - Permission check in Controller
+if (!HasPermission()) return Forbid();
+
+// ❌ WRONG - Login history in LoginHandler
+_db.LoginHistory.Add(loginHistory);
+
+// ❌ WRONG - Business logic in Hub
+public async Task ProcessRfq() { /* logic */ }
+```
+
+## **✅ CORRECT PATTERNS**
+
+```csharp
+// ✅ CORRECT - Separate Read/Write
+// Write
+await _writeDb.Rfqs.AddAsync(rfq);  // EF Core
+
+// Read
+await _readDb.QueryAsync<RfqViewModel>(sql);  // Dapper
+
+// ✅ CORRECT - CQRS in SignalR
+return await _queryDispatcher.QueryAsync(query);
+
+// ✅ CORRECT - Permission via Attribute
+[RequirePermission("RFQ_CREATE")]
+
+// ✅ CORRECT - Event-driven login
+await _eventBus.PublishAsync(new UserLoggedInEvent());
+```
+
+---
+
+## **🚨 CRITICAL REMINDERS**
+
+1. **Database**: 50 tables เท่านั้น (ไม่ใช่ 68)
+2. **APPROVER**: ไม่มี "Approve" มีแต่ส่งต่อ
+3. **Read/Write**: แยกชัดเจน 100% (Dapper/EF Core)
+4. **SignalR**: ต้องมี OnMessageReceived สำหรับ JWT
+5. **Wolverine**: ใช้ "messaging" schema
+6. **CurrentUserService**: Multi-company via header
+7. **Events**: Login history ผ่าน events เท่านั้น
+8. **Permissions**: Check จาก DB ไม่ใช่ hardcode
+
+**เมื่อตอบคำถาม ต้องยึด Context นี้ 100% ห้ามเพิ่มอะไรที่ไม่มี**

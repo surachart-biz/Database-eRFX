@@ -1,0 +1,937 @@
+# 📚 **eRFX System - Complete Context Documentation v6.1**
+**สำหรับ Claude ใน New Chat - อ่านทั้งหมดอย่างละเอียดก่อนตอบคำถาม**
+
+## **🎯 SYSTEM CORE DEFINITION**
+```yaml
+System Name: eRFX (Electronic Request for Quotation)
+Architecture: Clean Architecture + CQRS-lite + Hybrid Event-driven
+Type: Modular Monolith (can evolve to microservices)
+Database: PostgreSQL 14+ (Database-First approach)
+Total Tables: 50 tables (confirmed from erfq-db-schema-v62.sql)
+Scale: Enterprise B2B Procurement
+Users: Multi-company, Multi-role support (1000+ concurrent)
+Language: Thai/English (Templates stored in DB)
+Currency: Multi-currency with monthly exchange rates
+Timezone: Asia/Bangkok (UTC+7)
+```
+
+## **⚠️ CRITICAL ARCHITECTURE RULES**
+
+### **SEPARATE READ/WRITE MODELS - ต้องแยกชัดเจน 100%**
+```csharp
+// ✅ WRITE Operations - ใช้ EF Core เท่านั้น
+// - Connection: WriteConnection (erfx_write user)
+// - Pattern: Commands + CommandHandlers
+// - Models: Domain Entities (from Generated folder)
+// - Operations: Add, Update, Delete
+// - Transaction: Always use transactions
+
+// ✅ READ Operations - ใช้ Dapper เท่านั้น
+// - Connection: ReadConnection (erfx_read user)
+// - Pattern: Queries + QueryHandlers
+// - Models: ViewModels (NEVER use Entities)
+// - Operations: SELECT only
+// - Cache: Always cache with IMemoryCache or Redis
+```
+
+## **🔧 COMPLETE CONFIGURATION**
+
+### **appsettings.json**
+```json
+{
+  "ConnectionStrings": {
+    "WriteConnection": "Host=localhost;Port=5432;Database=erfx;Username=erfx_write;Password=write_pwd;Command Timeout=30;Maximum Pool Size=50",
+    "ReadConnection": "Host=localhost;Port=5432;Database=erfx;Username=erfx_read;Password=read_pwd;Command Timeout=30;Maximum Pool Size=100",
+    "RedisConnection": "localhost:6379,abortConnect=false,connectTimeout=5000,syncTimeout=5000"
+  },
+  
+  "DatabaseSettings": {
+    "UseReadReplica": true,
+    "CommandTimeout": 30,
+    "EnableSensitiveDataLogging": false
+  },
+  
+  "Jwt": {
+    "Issuer": "eRFX",
+    "Audience": "eRFX-Users",
+    "SecretKey": "your-256-bit-secret-key-must-be-at-least-32-characters-long",
+    "ExpiryMinutes": 30,
+    "RefreshTokenExpiryDays": 7,
+    "ClockSkewMinutes": 5
+  },
+  
+  "SignalR": {
+    "UseRedis": false,
+    "EnableDetailedErrors": false,
+    "MaximumReceiveMessageSize": 32768,
+    "StreamBufferCapacity": 10,
+    "KeepAliveInterval": "00:00:15",
+    "ClientTimeoutInterval": "00:00:30"
+  },
+  
+  "Wolverine": {
+    "ConnectionString": "Host=localhost;Port=5432;Database=erfx;Username=erfx_app;Password=app_pwd",
+    "SchemaName": "messaging",
+    "AutoCreateSchema": true,
+    "NodeId": "erfx-node-1",
+    "DurabilityMode": "Solo"
+  },
+  
+  "Caching": {
+    "Provider": "Memory",
+    "DefaultExpirationMinutes": 5,
+    "SlidingExpirationMinutes": 2,
+    "Redis": {
+      "Enabled": false,
+      "InstanceName": "erfx:"
+    }
+  },
+  
+  "Email": {
+    "Provider": "SendGrid",
+    "SendGrid": {
+      "ApiKey": "SG.xxx",
+      "FromEmail": "noreply@erfx.com",
+      "FromName": "eRFX System"
+    }
+  },
+  
+  "Storage": {
+    "Provider": "AzureBlob",
+    "AzureBlob": {
+      "ConnectionString": "DefaultEndpointsProtocol=https;AccountName=xxx",
+      "ContainerName": "erfx-files"
+    },
+    "MaxFileSize": 31457280,
+    "AllowedExtensions": [".pdf", ".doc", ".docx", ".xls", ".xlsx"]
+  },
+  
+  "RateLimiting": {
+    "Internal": {
+      "PermitLimit": 1000,
+      "Window": "00:01:00",
+      "QueueLimit": 100
+    },
+    "Supplier": {
+      "PermitLimit": 100,
+      "Window": "00:01:00",
+      "QueueLimit": 10
+    }
+  },
+  
+  "Serilog": {
+    "MinimumLevel": {
+      "Default": "Information",
+      "Override": {
+        "Microsoft": "Warning",
+        "Microsoft.EntityFrameworkCore": "Warning"
+      }
+    },
+    "WriteTo": [
+      { "Name": "Console" },
+      {
+        "Name": "File",
+        "Args": {
+          "path": "logs/erfx-.txt",
+          "rollingInterval": "Day",
+          "retainedFileCountLimit": 30
+        }
+      }
+    ],
+    "Enrich": ["FromLogContext", "WithMachineName", "WithThreadId"]
+  }
+}
+```
+
+## **📁 PROJECT STRUCTURE**
+
+```
+eRFX/
+├── src/
+│   ├── 01-BuildingBlocks/
+│   │   ├── eRFX.BuildingBlocks.Abstractions/
+│   │   │   ├── CQRS/
+│   │   │   │   ├── ICommand.cs
+│   │   │   │   ├── ICommandHandler.cs
+│   │   │   │   ├── IQuery.cs
+│   │   │   │   └── IQueryHandler.cs
+│   │   │   └── Events/
+│   │   │       ├── IEvent.cs
+│   │   │       └── IEventHandler.cs
+│   │   └── eRFX.BuildingBlocks.Infrastructure/
+│   │       ├── CQRS/
+│   │       │   ├── CommandDispatcher.cs  # Custom, NO MediatR
+│   │       │   └── QueryDispatcher.cs
+│   │       └── Events/
+│   │           └── EventBus.cs
+│   │
+│   ├── 02-Shared/
+│   │   ├── eRFX.Shared.Abstractions/
+│   │   │   ├── Auth/
+│   │   │   │   ├── ICurrentUser.cs
+│   │   │   │   └── IJwtService.cs
+│   │   │   ├── Email/
+│   │   │   │   └── IEmailService.cs
+│   │   │   └── Storage/
+│   │   │       └── IFileStorageService.cs
+│   │   └── eRFX.Shared.Infrastructure/
+│   │       ├── Auth/
+│   │       │   ├── CurrentUserService.cs
+│   │       │   └── JwtService.cs
+│   │       └── Caching/
+│   │           ├── MemoryCacheService.cs
+│   │           └── RedisCacheService.cs
+│   │
+│   ├── 03-Modules/
+│   │   ├── RFQ/
+│   │   │   ├── eRFX.Modules.RFQ.Core/
+│   │   │   ├── eRFX.Modules.RFQ.Application/
+│   │   │   └── eRFX.Modules.RFQ.Infrastructure/
+│   │   ├── Supplier/
+│   │   ├── Quotation/
+│   │   ├── User/
+│   │   └── Notification/
+│   │
+│   ├── 04-API/
+│   │   └── eRFX.API/
+│   │       ├── Controllers/
+│   │       ├── Hubs/
+│   │       │   └── NotificationHub.cs
+│   │       ├── Authorization/
+│   │       │   ├── PermissionAuthorizationHandler.cs
+│   │       │   └── PermissionRequirement.cs
+│   │       ├── Filters/
+│   │       │   ├── AuditAttribute.cs
+│   │       │   └── RequirePermissionAttribute.cs
+│   │       ├── Middleware/
+│   │       │   ├── AudienceValidationMiddleware.cs
+│   │       │   └── AuditEnricherMiddleware.cs
+│   │       └── Program.cs
+│   │
+│   └── 05-Persistence/
+│       └── eRFX.Persistence/
+│           ├── Generated/          # DO NOT EDIT
+│           │   ├── Entities/
+│           │   └── ErfxDbContext.Generated.cs
+│           └── Extensions/          # SAFE TO EDIT
+│               └── EntityExtensions/
+│
+└── tests/
+    ├── 01-UnitTests/
+    ├── 02-IntegrationTests/
+    └── 03-FunctionalTests/
+```
+
+## **🗄️ DATABASE SCHEMA (50 Tables)**
+
+[Same as v6.0 - no changes]
+
+## **💻 CORE IMPLEMENTATIONS**
+
+### **1. Connection Tracking Implementation**
+
+```csharp
+// eRFX.SignalR/Services/IConnectionTracker.cs
+public interface IConnectionTracker
+{
+    Task AddConnectionAsync(string userId, string connectionId);
+    Task RemoveConnectionAsync(string connectionId);
+    Task<IEnumerable<string>> GetConnectionsAsync(string userId);
+    Task<bool> IsUserOnlineAsync(string userId);
+}
+
+// eRFX.SignalR/Services/InMemoryConnectionTracker.cs
+public class InMemoryConnectionTracker : IConnectionTracker
+{
+    private readonly ConcurrentDictionary<string, HashSet<string>> _connections = new();
+    
+    public Task AddConnectionAsync(string userId, string connectionId)
+    {
+        _connections.AddOrUpdate(userId,
+            new HashSet<string> { connectionId },
+            (key, oldValue) =>
+            {
+                oldValue.Add(connectionId);
+                return oldValue;
+            });
+        
+        return Task.CompletedTask;
+    }
+    
+    public Task RemoveConnectionAsync(string connectionId)
+    {
+        foreach (var pair in _connections)
+        {
+            if (pair.Value.Contains(connectionId))
+            {
+                pair.Value.Remove(connectionId);
+                if (pair.Value.Count == 0)
+                    _connections.TryRemove(pair.Key, out _);
+                break;
+            }
+        }
+        return Task.CompletedTask;
+    }
+    
+    public Task<IEnumerable<string>> GetConnectionsAsync(string userId)
+    {
+        _connections.TryGetValue(userId, out var connections);
+        return Task.FromResult(connections?.AsEnumerable() ?? Enumerable.Empty<string>());
+    }
+    
+    public Task<bool> IsUserOnlineAsync(string userId)
+    {
+        return Task.FromResult(_connections.ContainsKey(userId));
+    }
+}
+
+// eRFX.SignalR/Services/RedisConnectionTracker.cs
+public class RedisConnectionTracker : IConnectionTracker
+{
+    private readonly IConnectionMultiplexer _redis;
+    private readonly TimeSpan _expiry = TimeSpan.FromMinutes(30);
+    
+    public async Task AddConnectionAsync(string userId, string connectionId)
+    {
+        var db = _redis.GetDatabase();
+        await db.StringSetAsync($"conn:{connectionId}", userId, _expiry);
+        await db.SetAddAsync($"user_conns:{userId}", connectionId);
+        await db.StringSetAsync($"online:{userId}", "true", _expiry);
+    }
+    
+    public async Task RemoveConnectionAsync(string connectionId)
+    {
+        var db = _redis.GetDatabase();
+        var userId = await db.StringGetAsync($"conn:{connectionId}");
+        if (!userId.IsNullOrEmpty)
+        {
+            await db.SetRemoveAsync($"user_conns:{userId}", connectionId);
+            var count = await db.SetLengthAsync($"user_conns:{userId}");
+            if (count == 0)
+                await db.KeyDeleteAsync($"online:{userId}");
+        }
+        await db.KeyDeleteAsync($"conn:{connectionId}");
+    }
+    
+    public async Task<IEnumerable<string>> GetConnectionsAsync(string userId)
+    {
+        var db = _redis.GetDatabase();
+        var connections = await db.SetMembersAsync($"user_conns:{userId}");
+        return connections.Select(c => c.ToString());
+    }
+    
+    public async Task<bool> IsUserOnlineAsync(string userId)
+    {
+        var db = _redis.GetDatabase();
+        return await db.KeyExistsAsync($"online:{userId}");
+    }
+}
+```
+
+### **2. Role-specific Dashboard Query Handlers**
+
+```csharp
+// GetRequesterDashboardQueryHandler.cs
+public class GetRequesterDashboardQueryHandler : IQueryHandler<GetRequesterDashboardQuery, RequesterDashboardViewModel>
+{
+    private readonly IDbConnection _readDb;
+    private readonly IRedisCache _cache;
+    
+    public async Task<RequesterDashboardViewModel> HandleAsync(GetRequesterDashboardQuery query, CancellationToken ct)
+    {
+        var cacheKey = $"dashboard:requester:{query.UserId}";
+        if (_cache.TryGet(cacheKey, out RequesterDashboardViewModel cached))
+            return cached;
+        
+        var result = new RequesterDashboardViewModel();
+        
+        // Get status counts with date range
+        var statusSql = @"
+            SELECT 
+                COUNT(*) FILTER (WHERE ""Status"" = 'SAVE_DRAFT') AS SaveDraft,
+                COUNT(*) FILTER (WHERE ""Status"" = 'PENDING') AS Pending,
+                COUNT(*) FILTER (WHERE ""Status"" = 'DECLINED') AS Declined,
+                COUNT(*) FILTER (WHERE ""Status"" = 'REJECTED') AS Rejected,
+                COUNT(*) FILTER (WHERE ""Status"" = 'COMPLETED') AS Completed,
+                COUNT(*) AS Total
+            FROM ""Rfqs""
+            WHERE ""RequesterId"" = @UserId
+                AND ""CreatedAt"" BETWEEN @StartDate AND @EndDate";
+        
+        result.StatusCounts = await _readDb.QuerySingleAsync<StatusCountDto>(
+            statusSql,
+            new { query.UserId, query.StartDate, query.EndDate });
+        
+        // Get 5 RFQs near deadline
+        var nearDeadlineSql = @"
+            SELECT 
+                ""RfqNumber"",
+                ""ProjectName"",
+                ""RequiredQuotationDate"" AS DueDate,
+                ""RequiredQuotationDate"" - NOW() AS TimeRemaining
+            FROM ""Rfqs""
+            WHERE ""RequesterId"" = @UserId
+                AND ""Status"" = 'PENDING'
+                AND ""RequiredQuotationDate"" BETWEEN NOW() AND NOW() + INTERVAL '5 days'
+            ORDER BY ""RequiredQuotationDate""
+            LIMIT 5";
+        
+        result.NearDeadlineRfqs = (await _readDb.QueryAsync<RfqNearDeadlineDto>(
+            nearDeadlineSql,
+            new { query.UserId })).ToList();
+        
+        _cache.Set(cacheKey, result, TimeSpan.FromMinutes(1));
+        return result;
+    }
+}
+
+// Similar handlers for other roles:
+// GetApproverDashboardQueryHandler
+// GetPurchasingDashboardQueryHandler  
+// GetSupplierDashboardQueryHandler
+// GetPurchasingApproverDashboardQueryHandler
+```
+
+### **3. Audience Security Implementation**
+
+```csharp
+// RequireAudienceAttribute.cs
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
+public class RequireAudienceAttribute : Attribute
+{
+    public string[] AllowedAudiences { get; }
+    
+    public RequireAudienceAttribute(params string[] audiences)
+    {
+        AllowedAudiences = audiences;
+    }
+}
+
+// AudienceValidationMiddleware.cs
+public class AudienceValidationMiddleware
+{
+    private readonly RequestDelegate _next;
+    private readonly ILogger<AudienceValidationMiddleware> _logger;
+    
+    public async Task InvokeAsync(HttpContext context)
+    {
+        var endpoint = context.GetEndpoint();
+        var audienceAttr = endpoint?.Metadata.GetMetadata<RequireAudienceAttribute>();
+        
+        if (audienceAttr != null)
+        {
+            var userAudience = context.User.FindFirst("aud")?.Value;
+            
+            if (string.IsNullOrEmpty(userAudience) || !audienceAttr.AllowedAudiences.Contains(userAudience))
+            {
+                _logger.LogWarning(
+                    "Invalid audience access attempt. User: {UserId}, Audience: {Audience}, Required: {Required}",
+                    context.User.GetUserId(),
+                    userAudience,
+                    string.Join(",", audienceAttr.AllowedAudiences));
+                
+                context.Response.StatusCode = 403;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    error = "Invalid audience",
+                    message = "You don't have permission to access this resource"
+                });
+                return;
+            }
+        }
+        
+        await _next(context);
+    }
+}
+
+// AuditEnricherMiddleware.cs
+public class AuditEnricherMiddleware
+{
+    private readonly RequestDelegate _next;
+    
+    public async Task InvokeAsync(HttpContext context)
+    {
+        using (LogContext.PushProperty("Audience", context.User.FindFirst("aud")?.Value ?? "anonymous"))
+        using (LogContext.PushProperty("UserId", context.User.GetUserId()))
+        using (LogContext.PushProperty("CompanyId", context.User.GetCompanyId()))
+        using (LogContext.PushProperty("RequestId", context.TraceIdentifier))
+        {
+            await _next(context);
+        }
+    }
+}
+```
+
+### **4. Audit System Implementation**
+
+```csharp
+// AuditAttribute.cs
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
+public class AuditAttribute : ActionFilterAttribute
+{
+    private readonly string _module;
+    private readonly string _action;
+    private readonly bool _logRequest;
+    private readonly bool _logResponse;
+    
+    public AuditAttribute(string module, string action, bool logRequest = false, bool logResponse = false)
+    {
+        _module = module;
+        _action = action;
+        _logRequest = logRequest;
+        _logResponse = logResponse;
+    }
+    
+    public override async Task OnActionExecutionAsync(
+        ActionExecutingContext context,
+        ActionExecutionDelegate next)
+    {
+        var services = context.HttpContext.RequestServices;
+        var currentUser = services.GetRequiredService<ICurrentUser>();
+        var db = services.GetRequiredService<ErfxDbContext>();
+        
+        object? requestData = null;
+        if (_logRequest)
+        {
+            requestData = context.ActionArguments;
+        }
+        
+        var stopwatch = Stopwatch.StartNew();
+        var result = await next();
+        stopwatch.Stop();
+        
+        // Only audit successful operations
+        if (result.Exception == null)
+        {
+            object? responseData = null;
+            if (_logResponse && result.Result is ObjectResult objResult)
+            {
+                responseData = objResult.Value;
+            }
+            
+            // Save audit log asynchronously (don't block response)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var auditLog = new ActivityLog
+                    {
+                        UserId = currentUser.UserId,
+                        CompanyId = currentUser.CompanyId,
+                        Module = _module,
+                        Action = _action,
+                        EntityType = context.Controller.GetType().Name.Replace("Controller", ""),
+                        OldValues = requestData != null ? JsonSerializer.Serialize(requestData) : null,
+                        NewValues = responseData != null ? JsonSerializer.Serialize(responseData) : null,
+                        IpAddress = context.HttpContext.Connection.RemoteIpAddress?.ToString(),
+                        UserAgent = context.HttpContext.Request.Headers["User-Agent"],
+                        SessionId = context.HttpContext.TraceIdentifier,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    
+                    db.ActivityLogs.Add(auditLog);
+                    await db.SaveChangesAsync();
+                }
+                catch (Exception ex)
+                {
+                    services.GetRequiredService<ILogger<AuditAttribute>>()
+                        .LogError(ex, "Failed to write audit log");
+                }
+            });
+        }
+    }
+}
+```
+
+### **5. Wolverine Jobs Implementation**
+
+```csharp
+// ProcessNotificationRulesJob.cs
+public class ProcessNotificationRulesJob : IScheduledJob
+{
+    private readonly ErfxDbContext _db;
+    private readonly INotificationService _notificationService;
+    
+    public async Task ExecuteAsync()
+    {
+        // Get active rules from erfq-master-data-v61.sql
+        var activeRules = await _db.NotificationRules
+            .Where(r => r.IsActive)
+            .ToListAsync();
+        
+        foreach (var rule in activeRules)
+        {
+            await ProcessRule(rule);
+        }
+    }
+    
+    private async Task ProcessRule(NotificationRule rule)
+    {
+        switch (rule.RuleCode)
+        {
+            case "RFQ_DEADLINE_48H":
+                await ProcessDeadlineReminders(rule);
+                break;
+            case "NO_ACTION_2DAYS":
+                await ProcessNoActionReminders(rule);
+                break;
+        }
+    }
+    
+    private async Task ProcessDeadlineReminders(NotificationRule rule)
+    {
+        var sql = @"
+            SELECT r.*, u.""Id"" AS UserId, u.""Email"", ro.""RoleCode""
+            FROM ""Rfqs"" r
+            INNER JOIN ""Users"" u ON r.""CurrentActorId"" = u.""Id""
+            INNER JOIN ""UserCompanyRoles"" ucr ON u.""Id"" = ucr.""UserId""
+            INNER JOIN ""Roles"" ro ON ucr.""RoleId"" = ro.""Id""
+            WHERE r.""Status"" = 'PENDING'
+                AND r.""ResponseDeadline"" BETWEEN NOW() + INTERVAL '47 hours' AND NOW() + INTERVAL '49 hours'
+                AND NOT EXISTS (
+                    SELECT 1 FROM ""Notifications"" n
+                    WHERE n.""RfqId"" = r.""Id""
+                        AND n.""Type"" = 'DEADLINE_48H'
+                        AND n.""CreatedAt"" > NOW() - INTERVAL '24 hours'
+                )";
+        
+        var rfqsToNotify = await _db.Database
+            .GetDbConnection()
+            .QueryAsync<dynamic>(sql);
+        
+        foreach (var rfq in rfqsToNotify)
+        {
+            await _notificationService.SendRoleBasedNotificationAsync(new RoleNotificationRequest
+            {
+                Type = "DEADLINE_48H",
+                UserId = rfq.UserId,
+                RfqId = rfq.Id,
+                RecipientRole = rfq.RoleCode,
+                Priority = "HIGH",
+                Title = $"เหลือเวลาอีก 48 ชั่วโมง",
+                Message = $"{rfq.RfqNumber} {rfq.ProjectName} ใกล้ครบกำหนด"
+            });
+        }
+    }
+}
+
+// AutoDeclineExpiredRfqsJob.cs
+public class AutoDeclineExpiredRfqsJob : IScheduledJob
+{
+    private readonly ErfxDbContext _db;
+    private readonly IEventBus _eventBus;
+    
+    public async Task ExecuteAsync()
+    {
+        // Find expired RFQs using RoleResponseTimes
+        var sql = @"
+            UPDATE ""Rfqs"" r
+            SET 
+                ""Status"" = 'DECLINED',
+                ""DeclinedReason"" = 'Auto-declined: No response within SLA',
+                ""UpdatedAt"" = NOW()
+            FROM ""Users"" u
+            INNER JOIN ""UserCompanyRoles"" ucr ON u.""Id"" = ucr.""UserId""
+            INNER JOIN ""Roles"" ro ON ucr.""RoleId"" = ro.""Id""
+            INNER JOIN ""RoleResponseTimes"" rt ON ro.""RoleCode"" = rt.""RoleCode""
+            WHERE r.""CurrentActorId"" = u.""Id""
+                AND r.""Status"" = 'PENDING'
+                AND rt.""IsActive"" = true
+                AND r.""CurrentActorReceivedAt"" + (rt.""ResponseTimeDays"" * INTERVAL '1 day') < NOW()
+            RETURNING r.""Id"", r.""RfqNumber"", r.""RequesterId"", r.""CurrentActorId""";
+        
+        var declinedRfqs = await _db.Database
+            .GetDbConnection()
+            .QueryAsync<dynamic>(sql);
+        
+        foreach (var rfq in declinedRfqs)
+        {
+            await _eventBus.PublishAsync(new RfqAutoDeclinedEvent
+            {
+                RfqId = rfq.Id,
+                RfqNumber = rfq.RfqNumber,
+                RequesterId = rfq.RequesterId,
+                DeclinedActorId = rfq.CurrentActorId,
+                Reason = "SLA Expired"
+            });
+        }
+    }
+}
+```
+
+### **6. Wolverine Message Handlers**
+
+```csharp
+// SendEmailHandler.cs
+public class SendEmailHandler : IMessageHandler<SendEmailCommand>
+{
+    private readonly ISendGridService _sendGrid;
+    private readonly ErfxDbContext _db;
+    private readonly IEmailTemplateService _templateService;
+    
+    public async Task HandleAsync(SendEmailCommand command, CancellationToken ct)
+    {
+        // Get email template from DB
+        var template = await _templateService.GetTemplateAsync(
+            command.TemplateCode,
+            command.Language ?? "th");
+        
+        // Replace variables
+        var body = ReplaceVariables(template.BodyHtml, command.Variables);
+        var subject = ReplaceVariables(template.Subject, command.Variables);
+        
+        // Send via SendGrid
+        var response = await _sendGrid.SendEmailAsync(new SendGridMessage
+        {
+            To = command.To,
+            Subject = subject,
+            HtmlContent = body,
+            From = "noreply@erfx.com"
+        });
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            // Wolverine will retry based on configuration
+            throw new EmailServiceException($"SendGrid failed: {response.StatusCode}");
+        }
+        
+        // Update notification status
+        if (command.NotificationId.HasValue)
+        {
+            var notification = await _db.Notifications.FindAsync(command.NotificationId.Value);
+            if (notification != null)
+            {
+                notification.EmailSent = true;
+                notification.EmailSentAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(ct);
+            }
+        }
+    }
+    
+    private string ReplaceVariables(string template, Dictionary<string, string> variables)
+    {
+        foreach (var (key, value) in variables)
+        {
+            template = template.Replace($"{{{{{key}}}}}", value);
+        }
+        return template;
+    }
+}
+```
+
+### **7. Notification Service with Role-specific Logic**
+
+```csharp
+// NotificationService.cs
+public class NotificationService : INotificationService
+{
+    private readonly ErfxDbContext _writeDb;
+    private readonly IHubContext<NotificationHub> _hub;
+    private readonly IMessageBus _bus;
+    
+    public async Task SendRoleBasedNotificationAsync(RoleNotificationRequest request)
+    {
+        // Save notification to DB
+        var notification = new Notification
+        {
+            Type = request.Type,
+            Priority = request.Priority,
+            UserId = request.UserId,
+            RfqId = request.RfqId,
+            Title = request.Title,
+            Message = request.Message,
+            IconType = GetIconByTypeAndRole(request.Type, request.RecipientRole),
+            ActionUrl = BuildActionUrlByRole(request.RecipientRole, request.RfqId),
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow,
+            Channels = DetermineChannelsByRole(request.RecipientRole, request.Priority)
+        };
+        
+        _writeDb.Notifications.Add(notification);
+        await _writeDb.SaveChangesAsync();
+        
+        // Push real-time notification
+        await _hub.Clients
+            .Group($"user_{request.UserId}")
+            .SendAsync("NewNotification", MapToNotificationDto(notification));
+        
+        // Update unread count
+        var unreadCount = await _writeDb.Notifications
+            .CountAsync(n => n.UserId == request.UserId && !n.IsRead);
+        
+        await _hub.Clients
+            .Group($"user_{request.UserId}")
+            .SendAsync("UnreadCount", unreadCount);
+        
+        // Queue email if needed (using Wolverine)
+        if (notification.Channels.Contains("EMAIL"))
+        {
+            await _bus.PublishAsync(new SendEmailNotificationCommand
+            {
+                NotificationId = notification.Id,
+                UserId = request.UserId,
+                TemplateCode = GetEmailTemplateCode(request.Type, request.RecipientRole)
+            });
+        }
+    }
+    
+    private string GetIconByTypeAndRole(string type, string role)
+    {
+        return (type, role) switch
+        {
+            ("RFQ_APPROVED", "REQUESTER") => "check-circle",
+            ("RFQ_REJECTED", "REQUESTER") => "x-circle",
+            ("APPROVAL_REQUIRED", "APPROVER") => "clock",
+            ("SUPPLIER_INVITED", "SUPPLIER") => "user-plus",
+            ("QUOTATION_RECEIVED", "PURCHASING") => "file-text",
+            _ => "bell"
+        };
+    }
+    
+    private string BuildActionUrlByRole(string role, long? rfqId)
+    {
+        return role switch
+        {
+            "REQUESTER" => $"/my-rfqs/{rfqId}",
+            "APPROVER" => $"/approvals/{rfqId}",
+            "PURCHASING" => $"/purchasing/rfqs/{rfqId}",
+            "SUPPLIER" => $"/supplier/quotations/{rfqId}",
+            _ => "/notifications"
+        };
+    }
+    
+    private string[] DetermineChannelsByRole(string role, string priority)
+    {
+        return priority == "URGENT" 
+            ? new[] { "WEB", "EMAIL", "SMS" }
+            : new[] { "WEB", "EMAIL" };
+    }
+    
+    private string GetEmailTemplateCode(string type, string role)
+    {
+        return (type, role) switch
+        {
+            ("RFQ_APPROVED", "REQUESTER") => "APPROVER_APPROVED",
+            ("RFQ_REJECTED", "REQUESTER") => "APPROVER_REJECTED",
+            ("APPROVAL_REQUIRED", "APPROVER") => "PENDING_APPROVAL",
+            _ => "GENERAL_NOTIFICATION"
+        };
+    }
+}
+```
+
+### **8. Login History Event Handler**
+
+```csharp
+// LoginHistoryEventHandler.cs
+public class LoginHistoryEventHandler : 
+    IEventHandler<UserLoggedInEvent>,
+    IEventHandler<LoginFailedEvent>
+{
+    private readonly ErfxDbContext _db;
+    private readonly ILogger<LoginHistoryEventHandler> _logger;
+    
+    public async Task HandleAsync(UserLoggedInEvent evt, CancellationToken ct)
+    {
+        try
+        {
+            var loginHistory = new LoginHistory
+            {
+                UserId = evt.UserId,
+                UserType = "Employee",
+                LoginAt = evt.Timestamp,
+                LoginIp = evt.IpAddress,
+                UserAgent = evt.UserAgent,
+                Success = true,
+                SessionId = evt.SessionId
+            };
+            
+            _db.LoginHistory.Add(loginHistory);
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to record login history for user {UserId}", evt.UserId);
+        }
+    }
+    
+    public async Task HandleAsync(LoginFailedEvent evt, CancellationToken ct)
+    {
+        try
+        {
+            var loginHistory = new LoginHistory
+            {
+                Email = evt.Email,
+                UserType = "Employee",
+                LoginAt = evt.Timestamp,
+                LoginIp = evt.IpAddress,
+                UserAgent = evt.UserAgent,
+                Success = false,
+                FailureReason = evt.FailureReason
+            };
+            
+            _db.LoginHistory.Add(loginHistory);
+            await _db.SaveChangesAsync(ct);
+            
+            // Check for brute force attempts
+            var recentFailures = await _db.LoginHistory
+                .CountAsync(h => 
+                    h.Email == email &&
+                    h.Success == false &&
+                    h.LoginAt > DateTime.UtcNow.AddMinutes(-15));
+            
+            if (recentFailures >= 5)
+            {
+                _logger.LogWarning(
+                    "Possible brute force attack detected for email {Email} from IP {IP}",
+                    evt.Email,
+                    evt.IpAddress);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to record failed login for {Email}", evt.Email);
+        }
+    }
+}
+```
+
+## **📊 Components Summary Table (UPDATED)**
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| **CQRS Read/Write** | ✅ Complete | Separate connections, handlers |
+| **SignalR Auth** | ✅ Critical | OnMessageReceived for JWT |
+| **Connection Tracking** | ✅ Complete | InMemoryConnectionTracker + RedisConnectionTracker |
+| **Role Dashboards** | ✅ Complete | All role query handlers implemented |
+| **Bell Notifications** | ✅ Complete | All methods in NotificationHub |
+| **Audience Security** | ✅ Complete | RequireAudienceAttribute + Middleware |
+| **RoleResponseTimes** | ✅ Complete | Auto-decline logic with SLA |
+| **NotificationRules** | ✅ Complete | ProcessNotificationRulesJob |
+| **Wolverine Schema** | ✅ Separate | messaging schema |
+| **Configuration** | ✅ Complete | All settings documented |
+| **CurrentUserService** | ✅ Complete | Auto-resolve company, JWT/Header |
+| **JwtService** | ✅ Complete | Multi-company, audience claims |
+| **Permission System** | ✅ Complete | DB-based, attribute support |
+| **Audit System** | ✅ Complete | AuditAttribute with async logging |
+| **Audience Architecture** | ✅ Complete | Single API, multiple audiences |
+| **Wolverine Messaging** | ✅ Complete | Jobs, Handlers, retry policies |
+| **Event-driven Login** | ✅ Complete | LoginHistoryEventHandler |
+| **Notification Service** | ✅ Complete | Role-based notification logic |
+
+---
+
+## **🚨 FINAL CRITICAL REMINDERS**
+
+1. **Database**: 50 tables (ไม่ใช่ 68)
+2. **APPROVER**: ไม่มี "Approve" มีแต่ส่งต่อ
+3. **Read/Write**: แยกชัดเจน 100% (Dapper/EF Core)
+4. **SignalR**: ต้องมี OnMessageReceived สำหรับ JWT
+5. **Wolverine**: ใช้ "messaging" schema
+6. **CurrentUserService**: Multi-company via header
+7. **Events**: Login history ผ่าน events เท่านั้น
+8. **Permissions**: Check จาก DB via RolePermissions table
+9. **Connection Tracking**: In-memory (dev) หรือ Redis (prod)
+10. **Notification Rules**: Process จาก DB ทุก 30 นาที
+
+**เมื่อตอบคำถาม ต้องยึด Context นี้ 100% ห้ามเพิ่มอะไรที่ไม่มี**
