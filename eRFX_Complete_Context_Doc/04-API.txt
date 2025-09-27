@@ -1,0 +1,511 @@
+## **04-API - ทำไมต้องมีและ Best Practices**
+
+### **ทำไม API Layer แยกจาก Modules**
+
+1. **Presentation Logic** - HTTP concerns แยกจาก business logic
+2. **Multiple Clients** - Web, Mobile, Third-party APIs ใช้ modules เดียวกัน
+3. **Cross-cutting Concerns** - Auth, Logging, Rate limiting ที่จุดเดียว
+4. **API Versioning** - เปลี่ยน API ได้โดยไม่แก้ business logic
+5. **Security Boundary** - Single entry point for security
+
+## **1. Controllers/**
+
+### **RfqController.cs**
+```csharp
+[ApiController]
+[Route("api/v1/rfq")]
+[Authorize]
+public class RfqController : ControllerBase
+{
+    private readonly ICommandDispatcher _commandDispatcher;
+    private readonly IQueryDispatcher _queryDispatcher;
+    
+    [HttpPost]
+    [RequirePermission("RFQ_CREATE")]
+    [Audit("RFQ", "CREATE")]
+    public async Task<IActionResult> CreateRfq(CreateRfqRequest request)
+    {
+        var command = request.ToCommand();  // Map DTO to Command
+        var result = await _commandDispatcher.SendAsync(command);
+        return Ok(result);
+    }
+    
+    [HttpGet]
+    [ResponseCache(Duration = 60)]
+    public async Task<IActionResult> GetRfqs([FromQuery] GetRfqsRequest request)
+    {
+        var query = request.ToQuery();
+        var result = await _queryDispatcher.QueryAsync(query);
+        return Ok(result);
+    }
+}
+```
+**ทำไมต้องมี:** HTTP endpoint, Request/Response mapping, HTTP status codes
+**Best Practice:** Thin controllers, No business logic, Use dispatchers
+
+### **SupplierController.cs**
+```csharp
+[ApiController]
+[Route("api/v1/supplier")]
+[RequireAudience("supplier")]  // Supplier-only endpoints
+public class SupplierController : ControllerBase
+{
+    [HttpPost("quotation")]
+    [RateLimit("supplier")]  // Lower rate limits
+    public async Task<IActionResult> SubmitQuotation(SubmitQuotationRequest request)
+    {
+        // Supplier-specific logic
+    }
+}
+```
+**ทำไมต้องมี:** Audience separation, Different rate limits, Role-specific endpoints
+**Best Practice:** Separate controllers per audience, Clear routing
+
+## **2. Hubs/**
+
+### **NotificationHub.cs**
+```csharp
+[Authorize]
+public class NotificationHub : Hub
+{
+    private readonly IConnectionTracker _tracker;
+    private readonly IQueryDispatcher _queryDispatcher;
+    private readonly ICommandDispatcher _commandDispatcher;
+    
+    public override async Task OnConnectedAsync()
+    {
+        var userId = Context.User.GetUserId();
+        await _tracker.AddConnectionAsync(userId, Context.ConnectionId);
+        
+        // Join groups
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"user_{userId}");
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"role_{Context.User.GetRole()}");
+        
+        // Send initial data
+        await SendUnreadCount();
+        await SendDashboard();
+    }
+    
+    public async Task<NotificationListResult> GetNotifications(int page = 1)
+    {
+        // Use CQRS, not direct DB
+        return await _queryDispatcher.QueryAsync(new GetNotificationsQuery 
+        { 
+            UserId = Context.User.GetUserId(),
+            Page = page 
+        });
+    }
+    
+    public async Task MarkAsRead(long notificationId)
+    {
+        await _commandDispatcher.SendAsync(new MarkAsReadCommand
+        {
+            NotificationId = notificationId
+        });
+        await SendUnreadCount();
+    }
+}
+```
+**ทำไมต้องมี:** Real-time communication, Push notifications, Live updates
+**Best Practice:** Use CQRS, Track connections, Group management
+
+## **3. Authorization/**
+
+### **PermissionRequirement.cs**
+```csharp
+public class PermissionRequirement : IAuthorizationRequirement
+{
+    public string Permission { get; }
+    
+    public PermissionRequirement(string permission) 
+        => Permission = permission;
+}
+```
+**ทำไมต้องมี:** Custom authorization logic, Beyond simple roles
+**Best Practice:** Requirement objects, Not string-based
+
+### **PermissionAuthorizationHandler.cs**
+```csharp
+public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionRequirement>
+{
+    private readonly IServiceProvider _serviceProvider;
+    
+    protected override async Task HandleRequirementAsync(
+        AuthorizationHandlerContext context,
+        PermissionRequirement requirement)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IDbConnection>();
+        
+        var userId = context.User.GetUserId();
+        
+        // Check from database
+        var sql = @"
+            SELECT EXISTS(
+                SELECT 1 FROM ""UserCompanyRoles"" ucr
+                INNER JOIN ""RolePermissions"" rp ON ucr.""RoleId"" = rp.""RoleId""
+                INNER JOIN ""Permissions"" p ON rp.""PermissionId"" = p.""Id""
+                WHERE ucr.""UserId"" = @UserId
+                    AND p.""PermissionCode"" = @Permission
+                    AND ucr.""IsActive"" = true
+            )";
+        
+        var hasPermission = await db.QuerySingleAsync<bool>(sql, new
+        {
+            UserId = userId,
+            Permission = requirement.Permission
+        });
+        
+        if (hasPermission)
+            context.Succeed(requirement);
+    }
+}
+```
+**ทำไมต้องมี:** Database-driven permissions, Dynamic authorization
+**Best Practice:** Scope DB access, Cache results, Async operations
+
+## **4. Filters/**
+
+### **RequirePermissionAttribute.cs**
+```csharp
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
+public class RequirePermissionAttribute : TypeFilterAttribute
+{
+    public RequirePermissionAttribute(string permission) 
+        : base(typeof(PermissionFilter))
+    {
+        Arguments = new object[] { permission };
+    }
+}
+```
+**ทำไมต้องมี:** Declarative security, Clean controllers
+**Best Practice:** Attribute-based, Reusable
+
+### **AuditAttribute.cs**
+```csharp
+[AttributeUsage(AttributeTargets.Method)]
+public class AuditAttribute : ActionFilterAttribute
+{
+    private readonly string _module;
+    private readonly string _action;
+    private readonly bool _logRequest;
+    
+    public override async Task OnActionExecutionAsync(
+        ActionExecutingContext context,
+        ActionExecutionDelegate next)
+    {
+        var currentUser = context.HttpContext.RequestServices
+            .GetRequiredService<ICurrentUser>();
+        
+        object? requestData = null;
+        if (_logRequest)
+            requestData = context.ActionArguments;
+        
+        var result = await next();
+        
+        if (result.Exception == null)
+        {
+            // Fire-and-forget audit log
+            _ = Task.Run(async () =>
+            {
+                var db = context.HttpContext.RequestServices
+                    .GetRequiredService<ErfxDbContext>();
+                    
+                db.ActivityLogs.Add(new ActivityLog
+                {
+                    UserId = currentUser.UserId,
+                    Module = _module,
+                    Action = _action,
+                    RequestData = JsonSerializer.Serialize(requestData),
+                    IpAddress = context.HttpContext.Connection.RemoteIpAddress?.ToString(),
+                    CreatedAt = DateTime.UtcNow
+                });
+                
+                await db.SaveChangesAsync();
+            });
+        }
+    }
+}
+```
+**ทำไมต้องมี:** Audit trail, Compliance, Security monitoring
+**Best Practice:** Async logging, Don't block response, Critical actions only
+
+### **GlobalExceptionFilter.cs**
+```csharp
+public class GlobalExceptionFilter : IExceptionFilter
+{
+    private readonly ILogger<GlobalExceptionFilter> _logger;
+    
+    public void OnException(ExceptionContext context)
+    {
+        var exception = context.Exception;
+        var response = context.HttpContext.Response;
+        
+        var (statusCode, message) = exception switch
+        {
+            NotFoundException => (404, exception.Message),
+            ValidationException => (400, exception.Message),
+            UnauthorizedException => (401, "Unauthorized"),
+            ForbiddenException => (403, "Forbidden"),
+            BusinessException => (400, exception.Message),
+            _ => (500, "An error occurred")
+        };
+        
+        _logger.LogError(exception, "Error: {Message}", exception.Message);
+        
+        response.StatusCode = statusCode;
+        context.Result = new ObjectResult(new
+        {
+            error = message,
+            timestamp = DateTime.UtcNow,
+            path = context.HttpContext.Request.Path
+        });
+        
+        context.ExceptionHandled = true;
+    }
+}
+```
+**ทำไมต้องมี:** Consistent error responses, Hide internal errors, Logging
+**Best Practice:** Map exceptions to HTTP codes, Log everything, User-friendly messages
+
+### **RequireAudienceAttribute.cs**
+```csharp
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+public class RequireAudienceAttribute : Attribute
+{
+    public string[] AllowedAudiences { get; }
+    
+    public RequireAudienceAttribute(params string[] audiences)
+    {
+        AllowedAudiences = audiences;
+    }
+}
+```
+**ทำไมต้องมี:** Internal vs Supplier separation, API segmentation
+**Best Practice:** JWT audience claim, Multiple audiences support
+
+## **5. Middleware/**
+
+### **AudienceValidationMiddleware.cs**
+```csharp
+public class AudienceValidationMiddleware
+{
+    private readonly RequestDelegate _next;
+    private readonly ILogger<AudienceValidationMiddleware> _logger;
+    
+    public async Task InvokeAsync(HttpContext context)
+    {
+        var endpoint = context.GetEndpoint();
+        var audienceAttr = endpoint?.Metadata.GetMetadata<RequireAudienceAttribute>();
+        
+        if (audienceAttr != null)
+        {
+            var userAudience = context.User.FindFirst("aud")?.Value;
+            
+            if (!audienceAttr.AllowedAudiences.Contains(userAudience))
+            {
+                _logger.LogWarning(
+                    "Invalid audience. User: {User}, Has: {Has}, Needs: {Needs}",
+                    context.User.GetUserId(),
+                    userAudience,
+                    string.Join(",", audienceAttr.AllowedAudiences));
+                
+                context.Response.StatusCode = 403;
+                await context.Response.WriteAsync("Invalid audience");
+                return;
+            }
+        }
+        
+        await _next(context);
+    }
+}
+```
+**ทำไมต้องมี:** Audience-based access control, API segregation
+**Best Practice:** Early rejection, Detailed logging
+
+### **AuditEnricherMiddleware.cs**
+```csharp
+public class AuditEnricherMiddleware
+{
+    private readonly RequestDelegate _next;
+    
+    public async Task InvokeAsync(HttpContext context)
+    {
+        // Enrich Serilog context for all requests
+        using (LogContext.PushProperty("UserId", context.User.GetUserId()))
+        using (LogContext.PushProperty("CompanyId", context.User.GetCompanyId()))
+        using (LogContext.PushProperty("RequestId", context.TraceIdentifier))
+        using (LogContext.PushProperty("ClientIP", context.Connection.RemoteIpAddress))
+        {
+            await _next(context);
+        }
+    }
+}
+```
+**ทำไมต้องมี:** Structured logging, Request tracing, Debugging
+**Best Practice:** Use LogContext, Don't log sensitive data
+
+### **RequestTimingMiddleware.cs**
+```csharp
+public class RequestTimingMiddleware
+{
+    private readonly RequestDelegate _next;
+    private readonly ILogger<RequestTimingMiddleware> _logger;
+    
+    public async Task InvokeAsync(HttpContext context)
+    {
+        var sw = Stopwatch.StartNew();
+        
+        try
+        {
+            await _next(context);
+        }
+        finally
+        {
+            sw.Stop();
+            
+            if (sw.ElapsedMilliseconds > 500)
+            {
+                _logger.LogWarning(
+                    "Slow request: {Method} {Path} took {ElapsedMs}ms",
+                    context.Request.Method,
+                    context.Request.Path,
+                    sw.ElapsedMilliseconds);
+            }
+        }
+    }
+}
+```
+**ทำไมต้องมี:** Performance monitoring, SLA tracking, Bottleneck detection
+**Best Practice:** Log slow requests only, Include context
+
+## **6. DTOs/**
+
+### **Requests/**
+```csharp
+public class CreateRfqRequest
+{
+    [Required]
+    [MaxLength(200)]
+    public string ProjectName { get; set; }
+    
+    [Required]
+    public long CategoryId { get; set; }
+    
+    [Required]
+    [MinLength(1)]
+    public List<RfqItemRequest> Items { get; set; }
+    
+    // Map to Command
+    public CreateRfqCommand ToCommand() => new()
+    {
+        ProjectName = ProjectName,
+        CategoryId = CategoryId,
+        Items = Items.Select(i => i.ToDto()).ToList()
+    };
+}
+```
+**ทำไมต้องมี:** API contracts, Validation, Versioning
+**Best Practice:** Immutable, Validation attributes, Mapping methods
+
+### **Responses/**
+```csharp
+public class RfqResponse
+{
+    public long RfqId { get; set; }
+    public string RfqNumber { get; set; }
+    public string Status { get; set; }
+    public DateTime CreatedAt { get; set; }
+    
+    // Computed for UI
+    public string StatusDisplay => Status switch
+    {
+        "SAVE_DRAFT" => "แบบร่าง",
+        "PENDING" => "รออนุมัติ",
+        _ => Status
+    };
+    
+    public string TimeAgo => DateTimeHelper.GetTimeAgo(CreatedAt);
+}
+```
+**ทำไมต้องมี:** Client-specific formatting, Consistent responses
+**Best Practice:** Flat structure, Computed properties, Localization
+
+## **7. Extensions/**
+
+### **ServiceCollectionExtensions.cs**
+```csharp
+public static class ServiceCollectionExtensions
+{
+    public static IServiceCollection AddApplicationServices(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        // CQRS
+        services.AddScoped<ICommandDispatcher, CommandDispatcher>();
+        services.AddScoped<IQueryDispatcher, QueryDispatcher>();
+        
+        // Auto-register handlers
+        services.Scan(scan => scan
+            .FromAssembliesOf(typeof(CreateRfqCommandHandler))
+            .AddClasses(classes => classes.AssignableTo(typeof(ICommandHandler<,>)))
+            .AsImplementedInterfaces()
+            .WithScopedLifetime());
+        
+        return services;
+    }
+}
+```
+**ทำไมต้องมี:** Clean Program.cs, Reusable configuration, Testing
+**Best Practice:** Extension methods, Logical grouping
+
+## **8. Program.cs Structure**
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// 1. Logging first
+builder.Host.UseSerilog();
+
+// 2. Services
+builder.Services.AddApplicationServices(builder.Configuration);
+builder.Services.AddInfrastructureServices(builder.Configuration);
+builder.Services.AddApiServices();
+
+var app = builder.Build();
+
+// 3. Middleware pipeline (ORDER MATTERS!)
+if (app.Environment.IsDevelopment())
+    app.UseDeveloperExceptionPage();
+else
+    app.UseExceptionHandler("/error");
+
+app.UseSecurityHeaders();      // 1. Security first
+app.UseSerilogRequestLogging(); // 2. Logging
+app.UseRateLimiter();           // 3. Rate limiting
+app.UseCors();                  // 4. CORS
+app.UseAuthentication();        // 5. Auth
+app.UseAudienceValidation();   // 6. Custom auth
+app.UseAuthorization();         // 7. Authorization
+app.UseRequestTiming();         // 8. Performance
+app.MapControllers();           // 9. Controllers
+app.MapHub<NotificationHub>("/hubs/notification"); // 10. SignalR
+
+await app.RunAsync();
+```
+**Middleware Order Critical:**
+1. **Security** → **Logging** → **Auth** → **Business Logic**
+2. ผิดลำดับ = ไม่ทำงานหรือ security holes
+
+## **Best Practices Summary:**
+
+1. **Controllers บาง** - ใช้ Dispatchers
+2. **No business logic** ใน API layer
+3. **Consistent error handling** ผ่าน GlobalExceptionFilter
+4. **Audit critical actions** แบบ async
+5. **Permission-based auth** ไม่ใช่แค่ roles
+6. **Separate audiences** (internal/supplier)
+7. **SignalR ใช้ CQRS** ไม่ใช่ direct DB
+8. **Middleware order** สำคัญมาก
+9. **DTOs สำหรับ API contracts** ไม่ใช้ entities
+10. **Health checks & monitoring** endpoints

@@ -1,0 +1,344 @@
+## **03-Modules - ทำไมต้องมีและ Best Practices**
+
+### **ทำไมต้องแยก Modules**
+
+1. **Bounded Context** - แต่ละ module = business domain แยกชัดเจน
+2. **Team Scalability** - แต่ละทีมดูแล module ของตัวเอง ไม่ชนกัน
+3. **Deployment Flexibility** - แยกเป็น microservices ได้ในอนาคต
+4. **Testing Isolation** - Test แต่ละ module แยกกัน
+5. **Cognitive Load** - Developer focus แค่ module ที่ทำ
+
+### **โครงสร้าง 3 Layers ต่อ Module**
+
+```
+Module/
+├── Core/           # Domain layer (Business rules)
+├── Application/    # Use case layer (Orchestration)
+└── Infrastructure/ # Data layer (External dependencies)
+```
+
+## **1. Core Layer - Business Rules**
+
+### **ValueObjects/** 
+```csharp
+// RfqStatus.cs
+public class RfqStatus : ValueObject
+{
+    public const string SAVE_DRAFT = "SAVE_DRAFT";
+    
+    public static bool IsValidTransition(string from, string to) { }
+}
+```
+**ทำไมต้องมี:** Type safety, Business constants, Prevent magic strings
+**Best Practice:** Immutable, No ID, Value equality
+
+### **Specifications/**
+```csharp
+// ActiveRfqSpecification.cs
+public class ActiveRfqSpecification : Specification<Rfq>
+{
+    public override Expression<Func<Rfq, bool>> ToExpression()
+    {
+        return rfq => rfq.Status != "COMPLETED" && rfq.Status != "REJECTED";
+    }
+}
+```
+**ทำไมต้องมี:** Reusable business rules, Testable queries, Single responsibility
+**Best Practice:** Pure functions, Composable, No side effects
+
+### **DomainServices/**
+```csharp
+// RfqNumberGenerator.cs
+public class RfqNumberGenerator : IRfqNumberGenerator
+{
+    public async Task<string> GenerateAsync(long companyId)
+    {
+        // Complex business logic for number format
+        return $"RFQ-{year}-{companyCode}-{sequence:D6}";
+    }
+}
+```
+**ทำไมต้องมี:** Business logic ที่ไม่ fit ใน entity, Stateless operations
+**Best Practice:** Interface-based, Mockable, Single purpose
+
+### **Interfaces/**
+```csharp
+// IRfqRepository.cs
+public interface IRfqRepository
+{
+    Task<Rfq> GetByIdAsync(long id);
+    Task<List<Rfq>> GetActiveByUserAsync(long userId);
+}
+```
+**ทำไมต้องมี:** Dependency inversion, Testability, Decoupling
+**Best Practice:** Small interfaces, Domain-focused methods
+
+### **Events/**
+```csharp
+// RfqCreatedEvent.cs
+public class RfqCreatedEvent : IEvent
+{
+    public long RfqId { get; set; }
+    public DateTime OccurredAt { get; set; }
+}
+```
+**ทำไมต้องมี:** Module communication, Audit trail, Eventual consistency
+**Best Practice:** Immutable, Past tense naming, Minimal data
+
+### **Exceptions/**
+```csharp
+// RfqNotFoundException.cs
+public class RfqNotFoundException : DomainException
+{
+    public RfqNotFoundException(long rfqId) 
+        : base($"RFQ {rfqId} not found") { }
+}
+```
+**ทำไมต้องมี:** Domain-specific errors, Better error handling
+**Best Practice:** Inherit from base, Include context
+
+## **2. Application Layer - Use Cases**
+
+### **Commands/**
+```csharp
+// CreateRfqCommand.cs
+public class CreateRfqCommand : ICommand<CreateRfqResult>
+{
+    public string ProjectName { get; set; }
+    public List<CreateRfqItemDto> Items { get; set; }
+}
+```
+**ทำไมต้องมี:** Write operations, Input validation, Command pattern
+**Best Practice:** Immutable properties, Single operation
+
+### **CommandHandlers/**
+```csharp
+// CreateRfqCommandHandler.cs
+public class CreateRfqCommandHandler : ICommandHandler<CreateRfqCommand, CreateRfqResult>
+{
+    private readonly ErfxDbContext _db;
+    private readonly IEventBus _eventBus;
+    
+    public async Task<CreateRfqResult> HandleAsync(CreateRfqCommand command)
+    {
+        // Orchestrate: Validate → Create → Save → Publish
+    }
+}
+```
+**ทำไมต้องมี:** Business orchestration, Transaction boundary, Side effects
+**Best Practice:** Single responsibility, Explicit dependencies, Always async
+
+### **Queries/**
+```csharp
+// GetRfqListQuery.cs
+public class GetRfqListQuery : IQuery<PagedResult<RfqListViewModel>>
+{
+    public int Page { get; set; }
+    public string? Status { get; set; }
+}
+```
+**ทำไมต้องมี:** Read operations, Query parameters, CQRS separation
+**Best Practice:** No side effects, Specific return types
+
+### **QueryHandlers/**
+```csharp
+// GetRfqListQueryHandler.cs
+public class GetRfqListQueryHandler : IQueryHandler<GetRfqListQuery, PagedResult<RfqListViewModel>>
+{
+    private readonly IDbConnection _db;  // Dapper
+    private readonly IMemoryCache _cache;
+    
+    public async Task<PagedResult<RfqListViewModel>> HandleAsync(GetRfqListQuery query)
+    {
+        // Check cache → Query → Transform → Cache → Return
+    }
+}
+```
+**ทำไมต้องมี:** Optimized reads, Caching logic, View transformations
+**Best Practice:** Use Dapper, Always cache, Return ViewModels
+
+### **DTOs/**
+```csharp
+// RfqListViewModel.cs
+public class RfqListViewModel
+{
+    public long RfqId { get; set; }
+    public string RfqNumber { get; set; }
+    public string StatusDisplay { get; set; }  // Formatted for UI
+}
+```
+**ทำไมต้องมี:** API contracts, UI-specific formatting, Decoupling
+**Best Practice:** Flat structure, No behavior, Nullable properties
+
+### **Validators/**
+```csharp
+// CreateRfqValidator.cs
+public class CreateRfqValidator : AbstractValidator<CreateRfqCommand>
+{
+    public CreateRfqValidator()
+    {
+        RuleFor(x => x.ProjectName).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Items).NotEmpty().Must(HaveValidQuantities);
+    }
+}
+```
+**ทำไมต้องมี:** Input validation, Business rules, Error messages
+**Best Practice:** FluentValidation, Async rules, Custom validators
+
+### **Services/**
+```csharp
+// RfqApprovalService.cs
+public class RfqApprovalService : IRfqApprovalService
+{
+    public async Task<User> FindNextApproverAsync(Rfq rfq)
+    {
+        // Complex business logic for approval routing
+    }
+}
+```
+**ทำไมต้องมี:** Complex orchestration, Reusable logic, Multiple handlers
+**Best Practice:** Interface-based, Single purpose, Testable
+
+## **3. Infrastructure Layer - External Dependencies**
+
+### **Persistence/**
+```csharp
+// RfqRepository.cs
+public class RfqRepository : IRfqRepository
+{
+    private readonly ErfxDbContext _db;
+    
+    public async Task<Rfq> GetByIdAsync(long id)
+    {
+        return await _db.Rfqs
+            .Include(r => r.RfqItems)
+            .FirstOrDefaultAsync(r => r.Id == id);
+    }
+}
+```
+**ทำไมต้องมี:** Data access, EF Core operations, Write operations
+**Best Practice:** Use UoW pattern, Include navigation, Async all
+
+### **Queries/**
+```csharp
+// RfqQueryService.cs
+public class RfqQueryService : IRfqQueryService
+{
+    private readonly IDbConnection _db;
+    
+    public async Task<RfqDashboardData> GetDashboardAsync(long userId)
+    {
+        var sql = @"Complex SQL with multiple CTEs";
+        return await _db.QuerySingleAsync<RfqDashboardData>(sql);
+    }
+}
+```
+**ทำไมต้องมี:** Complex queries, Performance optimization, Raw SQL
+**Best Practice:** Dapper for reads, Parameterized queries, Async
+
+### **ExternalServices/**
+```csharp
+// TaxApiClient.cs
+public class TaxApiClient : ITaxService
+{
+    private readonly HttpClient _httpClient;
+    
+    public async Task<bool> ValidateTaxIdAsync(string taxId)
+    {
+        // Call external API
+    }
+}
+```
+**ทำไมต้องมี:** Third-party integrations, API calls, External dependencies
+**Best Practice:** HttpClient factory, Polly retry, Circuit breaker
+
+### **Caching/**
+```csharp
+// RfqCacheService.cs
+public class RfqCacheService : IRfqCacheService
+{
+    private readonly IMemoryCache _l1;
+    private readonly IDistributedCache _l2;
+    
+    public async Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory)
+    {
+        // L1 → L2 → Database → Set L2 → Set L1
+    }
+}
+```
+**ทำไมต้องมี:** Performance, Reduce DB load, Shared state
+**Best Practice:** Multi-level cache, Sliding expiration, Key patterns
+
+## **Module Communication Best Practices**
+
+### **1. ผ่าน Events (Preferred)**
+```csharp
+// RFQ module publishes
+await _eventBus.PublishAsync(new RfqApprovedEvent { RfqId = 1 });
+
+// Notification module subscribes
+public class RfqApprovedEventHandler : IEventHandler<RfqApprovedEvent> { }
+```
+
+### **2. ผ่าน Shared Interfaces**
+```csharp
+// Shared.Abstractions
+public interface IUserContext
+{
+    long GetCurrentUserId();
+}
+```
+
+### **3. ไม่ควร Direct Reference**
+```csharp
+// ❌ Wrong
+var notification = new NotificationModule.Services.NotificationService();
+
+// ✅ Correct
+await _eventBus.PublishAsync(new NotifyUserCommand());
+```
+
+## **Folder Structure Best Practices**
+
+```
+eRFX.Modules.RFQ.Core/
+├── ValueObjects/         # Business concepts
+├── Specifications/       # Reusable queries  
+├── DomainServices/       # Stateless logic
+├── Interfaces/           # Contracts
+├── Events/              # Domain events
+└── Exceptions/          # Domain exceptions
+
+eRFX.Modules.RFQ.Application/
+├── Commands/            # Write operations
+│   └── CreateRfq/
+│       ├── CreateRfqCommand.cs
+│       ├── CreateRfqCommandHandler.cs
+│       └── CreateRfqValidator.cs
+├── Queries/             # Read operations
+│   └── GetRfqList/
+│       ├── GetRfqListQuery.cs
+│       └── GetRfqListQueryHandler.cs
+├── DTOs/                # Data contracts
+├── Services/            # Orchestration
+└── EventHandlers/       # Event reactions
+
+eRFX.Modules.RFQ.Infrastructure/
+├── Persistence/         # EF Core
+├── Queries/            # Dapper
+├── ExternalServices/   # APIs
+└── Caching/           # Cache logic
+```
+
+## **สรุป Key Points:**
+
+1. **Core = What** (Business rules)
+2. **Application = How** (Use cases)  
+3. **Infrastructure = Where** (External deps)
+4. **ห้าม Entity ซ้ำ** - ใช้จาก Generated
+5. **Commands = EF Core** (Write)
+6. **Queries = Dapper** (Read)
+7. **Events สำหรับ Module communication**
+8. **Cache ทุก Query**
+9. **Validate ทุก Command**
+10. **Test แยกตาม Layer**

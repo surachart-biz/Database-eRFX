@@ -1,0 +1,935 @@
+## **02-Shared Module - Complete Breakdown**
+
+### **1. WolverineConfiguration - ทำไมบางครั้งมี/ไม่มี**
+
+**มี WolverineConfiguration เมื่อ:**
+- System ต้องการ message durability (messages survive restart)
+- มี background jobs ที่ต้อง run ตามเวลา
+- ต้องการ retry policies ที่ sophisticated
+- Scale-out ได้ (multi-node deployment)
+
+**ไม่มี WolverineConfiguration เมื่อ:**
+- ใช้แค่ in-memory events (ไม่ต้อง persist)
+- ไม่มี scheduled jobs
+- Single server deployment
+- Development/Testing environment
+
+### **2. ต้องใช้ Wolverine ตาม Tech Stack หรือไม่**
+
+**ใช่ ต้องใช้ เพราะ:**
+- **NotificationRules** - ต้อง process ทุก 30 นาที
+- **Auto-decline RFQs** - ต้อง check SLA expiry ทุกชั่วโมง
+- **Email Queue** - ต้อง retry เมื่อ SendGrid fail
+- **Audit Events** - ต้อง guarantee delivery
+
+**ถ้าไม่ใช้ Wolverine จะเกิด:**
+- ต้องสร้าง NotificationQueue table เอง (ซึ่ง context บอกห้าม)
+- ต้องเขียน retry logic เอง
+- ต้องจัดการ scheduled jobs เอง (Hangfire/Quartz)
+- Lost messages เมื่อ server restart
+
+### **3. L1+L2 Cache Best Practice**
+
+**Development:**
+```json
+{
+  "Caching": {
+    "Provider": "Memory",  // L1 only
+    "DefaultExpirationMinutes": 5
+  }
+}
+```
+- ใช้แค่ L1 (IMemoryCache) พอ
+- Simple, fast debugging
+- No external dependencies
+
+**Production:**
+```json
+{
+  "Caching": {
+    "Provider": "Hybrid",  // L1+L2
+    "Memory": {
+      "SizeLimit": 1000
+    },
+    "Redis": {
+      "Enabled": true,
+      "InstanceName": "erfx:"
+    }
+  }
+}
+```
+- **L1 (IMemoryCache)**: Hot data, 1-2 minutes TTL
+- **L2 (Redis)**: Shared cache, 5-30 minutes TTL
+- **Pattern**: Check L1 → Check L2 → Hit Database → Populate L2 → Populate L1
+
+**เหตุผลใช้ L1+L2 ใน Prod:**
+- **Performance**: L1 = ~0.001ms, L2 = ~1ms, DB = ~10-100ms
+- **Scale-out**: Multiple servers share L2 cache
+- **Memory efficiency**: L1 limited size, L2 unlimited
+- **Cache invalidation**: Broadcast via Redis pub/sub
+
+### **4. ทุกไฟล์ใน 02-Shared**
+
+## **eRFX.Shared.Abstractions/**
+
+### **Auth/ICurrentUser.cs**
+```csharp
+public interface ICurrentUser
+{
+    long UserId { get; }
+    string Email { get; }
+    string Role { get; }
+    long CompanyId { get; }
+    long DepartmentId { get; }
+    string PreferredLanguage { get; }
+    List<long> GetUserCompanies();
+    List<long> GetUserCategories();
+    bool HasPermission(string permission);
+}
+```
+**ความสำคัญ**: Single source of truth for user context
+**เหตุผล**: ไม่ต้อง parse JWT ซ้ำ, Support multi-company switching, Cache user data
+
+### **Auth/IJwtService.cs**
+```csharp
+public interface IJwtService
+{
+    Task<TokenResponse> GenerateTokensAsync(User user, UserCompanyRole primaryRole);
+    Task<ClaimsPrincipal> ValidateTokenAsync(string token);
+    Task<TokenResponse> RefreshTokenAsync(string refreshToken);
+}
+```
+**ความสำคัญ**: Centralized JWT handling
+**เหตุผล**: Consistent token generation, Support refresh flow, Multi-company claims
+
+### **Email/IEmailService.cs**
+```csharp
+public interface IEmailService
+{
+    Task<bool> SendEmailAsync(EmailMessage message);
+    Task<bool> SendTemplatedEmailAsync(string templateCode, string to, Dictionary<string, string> variables);
+    Task<bool> SendBulkEmailAsync(List<EmailMessage> messages);
+}
+```
+**ความสำคัญ**: Email abstraction
+**เหตุผล**: Switch providers easily (SendGrid → SES), Template support, Bulk operations
+
+### **Storage/IFileStorageService.cs**
+```csharp
+public interface IFileStorageService
+{
+    Task<string> UploadAsync(Stream file, string fileName, string container);
+    Task<Stream> DownloadAsync(string fileUrl);
+    Task<bool> DeleteAsync(string fileUrl);
+    Task<string> GetSignedUrlAsync(string fileUrl, TimeSpan expiry);
+}
+```
+**ความสำคัญ**: File storage abstraction
+**เหตุผล**: Switch providers (Azure → AWS S3), Signed URLs for security, Stream-based for large files
+
+### **Caching/ICacheService.cs**
+```csharp
+public interface ICacheService
+{
+    Task<T?> GetAsync<T>(string key);
+    Task SetAsync<T>(string key, T value, TimeSpan? expiry = null);
+    Task RemoveAsync(string key);
+    Task RemoveByPrefixAsync(string prefix);
+}
+```
+**ความสำคัญ**: Cache abstraction
+**เหตุผล**: Switch providers, Support both L1/L2, Pattern-based invalidation
+
+## **eRFX.Shared.Infrastructure/**
+
+### **Auth/CurrentUserService.cs**
+```csharp
+public class CurrentUserService : ICurrentUser
+{
+    private readonly IHttpContextAccessor _httpContext;
+    private readonly IMemoryCache _cache;
+    
+    public long CompanyId
+    {
+        get
+        {
+            var cacheKey = $"user_company_{UserId}";
+            if (_cache.TryGetValue(cacheKey, out long cached))
+                return cached;
+                
+            // Check X-Company-Id header for switching
+            var headerCompany = _httpContext.HttpContext?.Request.Headers["X-Company-Id"].FirstOrDefault();
+            if (!string.IsNullOrEmpty(headerCompany))
+            {
+                var allowedCompanies = GetClaim("companies")?.Split(',') ?? Array.Empty<string>();
+                if (allowedCompanies.Contains(headerCompany))
+                {
+                    var companyId = long.Parse(headerCompany);
+                    _cache.Set(cacheKey, companyId, TimeSpan.FromMinutes(5));
+                    return companyId;
+                }
+                throw new ForbiddenException($"No access to company {headerCompany}");
+            }
+            
+            // Default from JWT
+            var primaryCompanyId = long.Parse(GetClaim("cid"));
+            _cache.Set(cacheKey, primaryCompanyId, TimeSpan.FromMinutes(5));
+            return primaryCompanyId;
+        }
+    }
+}
+```
+**ความสำคัญ**: User context management
+**เหตุผล**: Company switching, Permission caching, Reduce JWT parsing
+
+### **Auth/JwtService.cs**
+```csharp
+public class JwtService : IJwtService
+{
+    public async Task<TokenResponse> GenerateTokensAsync(User user, UserCompanyRole primaryRole)
+    {
+        var claims = new List<Claim>
+        {
+            new Claim("uid", user.Id.ToString()),
+            new Claim("email", user.Email),
+            new Claim("role", primaryRole.Role.RoleCode),
+            new Claim("cid", primaryRole.CompanyId.ToString()),
+            new Claim("aud", DetermineAudience(primaryRole.Role.RoleCode))
+        };
+        
+        // Multi-company support
+        if (user.UserCompanyRoles.Count > 1)
+        {
+            var companies = string.Join(",", user.UserCompanyRoles.Select(r => r.CompanyId));
+            claims.Add(new Claim("companies", companies));
+        }
+        
+        // Category bindings for Purchasing
+        if (primaryRole.Role.RoleCode == "PURCHASING")
+        {
+            var categories = GetUserCategories(user.Id);
+            claims.Add(new Claim("categories", string.Join(",", categories)));
+        }
+        
+        var token = GenerateJwtToken(claims);
+        var refreshToken = GenerateRefreshToken();
+        
+        return new TokenResponse { AccessToken = token, RefreshToken = refreshToken };
+    }
+}
+```
+**ความสำคัญ**: JWT generation with business rules
+**เหตุผล**: Role-based claims, Multi-company, Category bindings
+
+### **Caching/MemoryCacheService.cs**
+```csharp
+public class MemoryCacheService : ICacheService
+{
+    private readonly IMemoryCache _cache;
+    
+    public async Task<T?> GetAsync<T>(string key)
+    {
+        return await Task.FromResult(_cache.Get<T>(key));
+    }
+    
+    public async Task SetAsync<T>(string key, T value, TimeSpan? expiry = null)
+    {
+        var options = new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = expiry ?? TimeSpan.FromMinutes(5),
+            SlidingExpiration = TimeSpan.FromMinutes(2)
+        };
+        
+        _cache.Set(key, value, options);
+        await Task.CompletedTask;
+    }
+}
+```
+**ความสำคัญ**: L1 cache implementation
+**เหตุผล**: Fast access, No network latency, Per-server cache
+
+### **Caching/RedisCacheService.cs**
+```csharp
+public class RedisCacheService : ICacheService
+{
+    private readonly IConnectionMultiplexer _redis;
+    private readonly IMemoryCache _l1Cache;
+    
+    public async Task<T?> GetAsync<T>(string key)
+    {
+        // Check L1 first
+        if (_l1Cache.TryGetValue(key, out T cached))
+            return cached;
+            
+        // Then L2
+        var db = _redis.GetDatabase();
+        var value = await db.StringGetAsync(key);
+        
+        if (!value.IsNullOrEmpty)
+        {
+            var deserialized = JsonSerializer.Deserialize<T>(value);
+            // Populate L1
+            _l1Cache.Set(key, deserialized, TimeSpan.FromMinutes(1));
+            return deserialized;
+        }
+        
+        return default(T);
+    }
+    
+    public async Task RemoveByPrefixAsync(string prefix)
+    {
+        var server = _redis.GetServer(_redis.GetEndPoints().First());
+        var keys = server.Keys(pattern: $"{prefix}*");
+        
+        var db = _redis.GetDatabase();
+        await db.KeyDeleteAsync(keys.ToArray());
+        
+        // Publish invalidation event
+        await _redis.GetSubscriber().PublishAsync("cache_invalidation", prefix);
+    }
+}
+```
+**ความสำคัญ**: L2 cache with L1 integration
+**เหตุผล**: Shared cache, Pattern invalidation, Pub/sub for cluster
+
+### **Messaging/WolverineConfiguration.cs**
+```csharp
+public static class WolverineConfiguration
+{
+    public static IHostBuilder ConfigureWolverine(this IHostBuilder host)
+    {
+        return host.UseWolverine((context, opts) =>
+        {
+            var connectionString = context.Configuration.GetConnectionString("WriteConnection");
+            
+            // Separate schema for Wolverine tables
+            opts.PersistMessagesWithPostgresql(connectionString, schema: "messaging");
+            
+            // Scheduled jobs
+            opts.ScheduledJobs(jobs =>
+            {
+                jobs.Schedule<ProcessNotificationRulesJob>().EveryMinutes(30);
+                jobs.Schedule<AutoDeclineExpiredRfqsJob>().EveryHours(1);
+                jobs.Schedule<DeleteOldDraftsJob>().Daily().At(2, 0);
+            });
+            
+            // Retry policies
+            opts.OnException<EmailServiceException>()
+                .RetryWithCooldown(
+                    TimeSpan.FromSeconds(10),
+                    TimeSpan.FromMinutes(1),
+                    TimeSpan.FromMinutes(5))
+                .MaximumAttempts(3);
+                
+            // Node configuration for scaling
+            opts.Durability.NodeId = context.Configuration["Wolverine:NodeId"] ?? "erfx-node-1";
+        });
+    }
+}
+```
+**ความสำคัญ**: Centralized Wolverine setup
+**เหตุผล**: Scheduled jobs, Retry policies, Message persistence, Scale-out ready
+
+### **Email/SendGridService.cs**
+```csharp
+public class SendGridService : IEmailService
+{
+    private readonly ISendGridClient _client;
+    private readonly IEmailTemplateRepository _templateRepo;
+    
+    public async Task<bool> SendTemplatedEmailAsync(string templateCode, string to, Dictionary<string, string> variables)
+    {
+        var template = await _templateRepo.GetByCodeAsync(templateCode);
+        var body = ReplaceVariables(template.BodyHtml, variables);
+        
+        var msg = new SendGridMessage
+        {
+            From = new EmailAddress("noreply@erfx.com"),
+            Subject = template.Subject,
+            HtmlContent = body
+        };
+        msg.AddTo(to);
+        
+        var response = await _client.SendEmailAsync(msg);
+        return response.IsSuccessStatusCode;
+    }
+}
+```
+**ความสำคัญ**: Email implementation
+**เหตุผล**: Template support, Variable replacement, Error handling
+
+### **Storage/AzureBlobService.cs**
+```csharp
+public class AzureBlobService : IFileStorageService
+{
+    private readonly BlobServiceClient _blobClient;
+    
+    public async Task<string> UploadAsync(Stream file, string fileName, string container)
+    {
+        var containerClient = _blobClient.GetBlobContainerClient(container);
+        var blobClient = containerClient.GetBlobClient(fileName);
+        
+        await blobClient.UploadAsync(file, overwrite: false);
+        
+        return blobClient.Uri.ToString();
+    }
+    
+    public async Task<string> GetSignedUrlAsync(string fileUrl, TimeSpan expiry)
+    {
+        var blobClient = new BlobClient(new Uri(fileUrl));
+        
+        if (blobClient.CanGenerateSasUri)
+        {
+            var sasBuilder = new BlobSasBuilder
+            {
+                BlobContainerName = blobClient.BlobContainerName,
+                BlobName = blobClient.Name,
+                ExpiresOn = DateTimeOffset.UtcNow.Add(expiry),
+                Permissions = BlobSasPermissions.Read
+            };
+            
+            return blobClient.GenerateSasUri(sasBuilder).ToString();
+        }
+        
+        throw new NotSupportedException("Cannot generate SAS token");
+    }
+}
+```
+**ความสำคัญ**: File storage implementation
+**เหตุผล**: Secure file access, Stream support, Signed URLs
+
+## **สรุป Key Points:**
+1. **Wolverine จำเป็น** - สำหรับ scheduled jobs และ message durability
+2. **L1+L2 ใน Prod** - Performance + Scale-out capability
+3. **Abstractions แยกจาก Infrastructure** - Testability + Flexibility
+4. **CurrentUserService** - Central user context + Company switching
+5. **Caching Strategy** - L1 (hot) → L2 (shared) → Database
+
+## **Program.cs - Complete Production Configuration**
+
+```csharp
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using Npgsql;
+using Serilog;
+using Serilog.Events;
+using StackExchange.Redis;
+using System.Data;
+using System.Threading.RateLimiting;
+using Wolverine;
+using Wolverine.Postgresql;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// ============================================
+// 1. SERILOG CONFIGURATION
+// ============================================
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .Enrich.WithMachineName()
+    .Enrich.WithThreadId()
+    .Enrich.WithProperty("Application", "eRFX")
+    .WriteTo.Console(
+        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
+    .WriteTo.File(
+        path: "logs/erfx-.txt",
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 30,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
+// ============================================
+// 2. DATABASE CONFIGURATION (CQRS Separate Read/Write)
+// ============================================
+
+// WRITE Database - EF Core
+builder.Services.AddDbContext<ErfxDbContext>(options =>
+{
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("WriteConnection"),
+        npgsqlOptions =>
+        {
+            npgsqlOptions.CommandTimeout(30);
+            npgsqlOptions.EnableRetryOnFailure(3);
+        });
+    
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableSensitiveDataLogging();
+        options.EnableDetailedErrors();
+    }
+});
+
+// READ Database - Dapper
+builder.Services.AddScoped<IDbConnection>(sp =>
+{
+    var connection = new NpgsqlConnection(
+        builder.Configuration.GetConnectionString("ReadConnection"));
+    connection.Open();
+    return connection;
+});
+
+// ============================================
+// 3. CACHE CONFIGURATION
+// ============================================
+
+// L1 Cache - IMemoryCache
+builder.Services.AddMemoryCache(options =>
+{
+    options.SizeLimit = 1000;
+    options.CompactionPercentage = 0.25;
+    options.ExpirationScanFrequency = TimeSpan.FromMinutes(2);
+});
+
+// L2 Cache - Redis (Production only)
+if (builder.Configuration.GetValue<bool>("Caching:Redis:Enabled"))
+{
+    builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+        ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("RedisConnection")));
+    
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = builder.Configuration.GetConnectionString("RedisConnection");
+        options.InstanceName = builder.Configuration["Caching:Redis:InstanceName"];
+    });
+    
+    builder.Services.AddScoped<ICacheService, RedisCacheService>();
+}
+else
+{
+    builder.Services.AddScoped<ICacheService, MemoryCacheService>();
+}
+
+// ============================================
+// 4. WOLVERINE MESSAGE BUS
+// ============================================
+builder.Host.UseWolverine((context, opts) =>
+{
+    var connectionString = context.Configuration.GetConnectionString("WriteConnection");
+    
+    // Use separate schema for messaging tables
+    opts.PersistMessagesWithPostgresql(connectionString, persistence =>
+    {
+        persistence.SchemaName = "messaging";
+        persistence.AutoCreateSchemaIfNotExists = true;
+    });
+    
+    // Scheduled jobs
+    opts.ScheduledJobs(jobs =>
+    {
+        // Process notification rules every 30 minutes
+        jobs.Schedule<ProcessNotificationRulesJob>()
+            .EveryMinutes(30)
+            .ScheduledTime(DateTime.UtcNow.AddMinutes(1));
+        
+        // Auto-decline expired RFQs every hour
+        jobs.Schedule<AutoDeclineExpiredRfqsJob>()
+            .EveryHours(1);
+        
+        // Delete old drafts daily at 2 AM
+        jobs.Schedule<DeleteOldDraftsJob>()
+            .Daily()
+            .At(2, 0);
+    });
+    
+    // Retry policies
+    opts.OnException<EmailServiceException>()
+        .RetryWithCooldown(
+            TimeSpan.FromSeconds(10),
+            TimeSpan.FromMinutes(1),
+            TimeSpan.FromMinutes(5))
+        .MaximumAttempts(3)
+        .MoveToDeadLetterQueueOnFailure();
+    
+    // Node configuration for scaling
+    opts.Durability.NodeId = context.Configuration["Wolverine:NodeId"] ?? "erfx-node-1";
+    opts.Durability.Mode = DurabilityMode.Solo; // Change to Balanced for multi-node
+});
+
+// ============================================
+// 5. AUTHENTICATION & AUTHORIZATION
+// ============================================
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SecretKey"])),
+            ClockSkew = TimeSpan.FromMinutes(5)
+        };
+        
+        // CRITICAL: SignalR authentication from query string
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                
+                // Check if request is for SignalR hub
+                if (!string.IsNullOrEmpty(accessToken) && 
+                    path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                
+                return Task.CompletedTask;
+            },
+            
+            OnAuthenticationFailed = context =>
+            {
+                if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
+                {
+                    context.Response.Headers.Add("Token-Expired", "true");
+                }
+                return Task.CompletedTask;
+            }
+        };
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    // Permission-based policies
+    options.AddPolicy("RequireInternalAudience", 
+        policy => policy.RequireClaim("aud", "internal"));
+        
+    options.AddPolicy("RequireSupplierAudience", 
+        policy => policy.RequireClaim("aud", "supplier"));
+});
+
+// Register custom authorization handlers
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+
+// ============================================
+// 6. SIGNALR CONFIGURATION
+// ============================================
+if (builder.Configuration.GetValue<bool>("SignalR:UseRedis"))
+{
+    // Redis backplane for scale-out
+    builder.Services.AddSignalR(options =>
+    {
+        options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+        options.MaximumReceiveMessageSize = 32768;
+        options.StreamBufferCapacity = 10;
+        options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+        options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+    })
+    .AddStackExchangeRedis(builder.Configuration.GetConnectionString("RedisConnection"));
+    
+    builder.Services.AddSingleton<IConnectionTracker, RedisConnectionTracker>();
+}
+else
+{
+    // In-memory for single server
+    builder.Services.AddSignalR(options =>
+    {
+        options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    });
+    
+    builder.Services.AddSingleton<IConnectionTracker, InMemoryConnectionTracker>();
+}
+
+// ============================================
+// 7. RATE LIMITING
+// ============================================
+builder.Services.AddRateLimiter(options =>
+{
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
+        httpContext => RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.User?.Identity?.Name ?? httpContext.Request.Headers.Host.ToString(),
+            factory: partition => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+    
+    // Internal users - higher limits
+    options.AddPolicy("internal", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.User?.Identity?.Name ?? "anonymous",
+            factory: partition => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 1000,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 100
+            }));
+    
+    // Supplier users - lower limits
+    options.AddPolicy("supplier", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.User?.Identity?.Name ?? "anonymous",
+            factory: partition => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 10
+            }));
+    
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await context.HttpContext.Response.WriteAsync("Rate limit exceeded. Try again later.");
+    };
+});
+
+// ============================================
+// 8. SERVICES REGISTRATION
+// ============================================
+
+// HTTP Context
+builder.Services.AddHttpContextAccessor();
+
+// CQRS Dispatchers
+builder.Services.AddScoped<ICommandDispatcher, CommandDispatcher>();
+builder.Services.AddScoped<IQueryDispatcher, QueryDispatcher>();
+builder.Services.AddScoped<IEventBus, EventBus>();
+
+// Core Services
+builder.Services.AddScoped<ICurrentUser, CurrentUserService>();
+builder.Services.AddScoped<IJwtService, JwtService>();
+
+// Email Services
+builder.Services.AddScoped<IEmailService, SendGridService>();
+builder.Services.Configure<SendGridOptions>(
+    builder.Configuration.GetSection("Email:SendGrid"));
+
+// Storage Services
+builder.Services.AddScoped<IFileStorageService, AzureBlobService>();
+
+// Auto-register all Handlers
+builder.Services.Scan(scan => scan
+    .FromAssembliesOf(typeof(Program))
+    .AddClasses(classes => classes.AssignableTo(typeof(ICommandHandler<,>)))
+    .AsImplementedInterfaces()
+    .WithScopedLifetime());
+
+builder.Services.Scan(scan => scan
+    .FromAssembliesOf(typeof(Program))
+    .AddClasses(classes => classes.AssignableTo(typeof(IQueryHandler<,>)))
+    .AsImplementedInterfaces()
+    .WithScopedLifetime());
+
+builder.Services.Scan(scan => scan
+    .FromAssembliesOf(typeof(Program))
+    .AddClasses(classes => classes.AssignableTo(typeof(IEventHandler<>)))
+    .AsImplementedInterfaces()
+    .WithScopedLifetime());
+
+// ============================================
+// 9. API CONFIGURATION
+// ============================================
+
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<GlobalExceptionFilter>();
+});
+
+builder.Services.AddEndpointsApiExplorer();
+
+// Swagger with multiple documents
+builder.Services.AddSwaggerGen(c =>
+{
+    // Internal API
+    c.SwaggerDoc("internal", new OpenApiInfo
+    {
+        Title = "eRFX Internal API",
+        Version = "v1",
+        Description = "API for internal users (Requester, Approver, Purchasing)"
+    });
+    
+    // Supplier API
+    c.SwaggerDoc("supplier", new OpenApiInfo
+    {
+        Title = "eRFX Supplier Portal API",
+        Version = "v1",
+        Description = "API for supplier portal"
+    });
+    
+    // JWT Authentication
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+    
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+    
+    c.OperationFilter<AudienceOperationFilter>();
+});
+
+// CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowSpecificOrigins", builder =>
+    {
+        builder
+            .WithOrigins(
+                "http://localhost:3000",
+                "https://erfx.com",
+                "https://supplier.erfx.com")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
+
+// Health Checks
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<ErfxDbContext>("database")
+    .AddRedis(
+        builder.Configuration.GetConnectionString("RedisConnection"),
+        name: "redis",
+        failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded);
+
+var app = builder.Build();
+
+// ============================================
+// 10. MIDDLEWARE PIPELINE (ORDER MATTERS!)
+// ============================================
+
+// 1. Exception handling first
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/internal/swagger.json", "Internal API");
+        c.SwaggerEndpoint("/swagger/supplier/swagger.json", "Supplier API");
+    });
+}
+else
+{
+    app.UseExceptionHandler("/error");
+    app.UseHsts();
+}
+
+// 2. Security headers
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.Add("X-Content-Type-Options", "nosniff");
+    context.Response.Headers.Add("X-Frame-Options", "DENY");
+    context.Response.Headers.Add("X-XSS-Protection", "1; mode=block");
+    context.Response.Headers.Add("Referrer-Policy", "no-referrer");
+    await next();
+});
+
+// 3. Request logging with Serilog
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+    options.GetLevel = (httpContext, elapsed, ex) => 
+        ex != null ? LogEventLevel.Error : LogEventLevel.Information;
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        diagnosticContext.Set("RequestHost", httpContext.Request.Host.Value);
+        diagnosticContext.Set("UserAgent", httpContext.Request.Headers["User-Agent"]);
+    };
+});
+
+// 4. HTTPS redirection
+app.UseHttpsRedirection();
+
+// 5. Rate limiting
+app.UseRateLimiter();
+
+// 6. CORS
+app.UseCors("AllowSpecificOrigins");
+
+// 7. Audit enricher for Serilog
+app.UseMiddleware<AuditEnricherMiddleware>();
+
+// 8. Authentication
+app.UseAuthentication();
+
+// 9. Audience validation
+app.UseMiddleware<AudienceValidationMiddleware>();
+
+// 10. Authorization
+app.UseAuthorization();
+
+// 11. Map endpoints
+app.MapControllers()
+    .RequireAuthorization(); // All endpoints require authentication by default
+
+// 12. SignalR hubs
+app.MapHub<NotificationHub>("/hubs/notification")
+    .RequireAuthorization();
+
+// 13. Health checks
+app.MapHealthChecks("/health");
+
+// ============================================
+// 11. DATABASE MIGRATION & SEEDING
+// ============================================
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ErfxDbContext>();
+    
+    // Note: We use Database-First, so no migrations
+    // Just ensure connection works
+    await db.Database.CanConnectAsync();
+    Log.Information("Database connection verified");
+}
+
+// ============================================
+// 12. APPLICATION STARTUP
+// ============================================
+Log.Information("Starting eRFX API");
+Log.Information("Environment: {Environment}", app.Environment.EnvironmentName);
+Log.Information("SignalR Mode: {Mode}", 
+    builder.Configuration.GetValue<bool>("SignalR:UseRedis") ? "Redis" : "In-Memory");
+Log.Information("Cache Mode: {Mode}", 
+    builder.Configuration.GetValue<bool>("Caching:Redis:Enabled") ? "Redis (L1+L2)" : "Memory (L1 only)");
+
+await app.RunAsync();
+```
+
+## **Key Points ใน Program.cs:**
+
+1. **Serilog First** - ต้อง setup ก่อนเพื่อ log startup errors
+2. **Separate DB Connections** - WriteConnection (EF Core) / ReadConnection (Dapper)
+3. **Cache Strategy** - Check config สำหรับ L1 only หรือ L1+L2
+4. **Wolverine Messaging** - ใช้ "messaging" schema แยกจาก business tables
+5. **JWT + SignalR** - OnMessageReceived critical สำหรับ hub authentication
+6. **Connection Tracking** - Switch ตาม config (Redis/In-Memory)
+7. **Rate Limiting** - แยก internal/supplier limits
+8. **Swagger Docs** - แยก internal/supplier APIs
+9. **Middleware Order** - ลำดับสำคัญมาก (security → logging → auth → routing)
+10. **Health Checks** - Monitor database และ Redis
+11. **Auto-registration** - Scan assemblies สำหรับ handlers
+12. **Security Headers** - Production security best practices

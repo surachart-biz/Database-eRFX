@@ -1,0 +1,175 @@
+## **1. การใช้ตัวเลข Prefix (01-, 02-, 03-) ใน Folder Structure**
+
+### **เหตุผลที่ใช้:**
+- **Dependency Order** - แสดงลำดับการพึ่งพา (01 ไม่พึ่งพาใคร, 02 พึ่งพา 01, 03 พึ่งพา 01-02)
+- **Build Order** - .NET build ตามลำดับ alphabet ทำให้ build ถูกลำดับ
+- **Visual Hierarchy** - เห็นใน IDE/Explorer เรียงตามลำดับความสำคัญ
+- **Onboarding** - Developer ใหม่เข้าใจ flow การอ่าน code ได้ทันที
+
+### **ปัญหาที่อาจเกิด:**
+- **CI/CD Scripts** - บาง tools อาจมีปัญหากับ path ที่ขึ้นต้นด้วยตัวเลข
+- **Import Paths** - TypeScript/JavaScript อาจ error ถ้า import จาก numeric path
+- **Docker Context** - บาง Docker version มีปัญหากับ numeric folder names
+
+### **วิธีแก้ถ้าเจอปัญหา:**
+```xml
+<!-- ใน .csproj กำหนด AssemblyName ชัดเจน -->
+<Project>
+  <PropertyGroup>
+    <AssemblyName>eRFX.BuildingBlocks.Abstractions</AssemblyName>
+    <RootNamespace>eRFX.BuildingBlocks.Abstractions</RootNamespace>
+  </PropertyGroup>
+</Project>
+```
+
+## **2. ไฟล์ใน 01-BuildingBlocks และความสำคัญ**
+
+### **eRFX.BuildingBlocks.Abstractions/**
+
+#### **CQRS/ICommand.cs**
+```csharp
+public interface ICommand<TResult> { }
+public interface ICommand { }
+```
+- **ความสำคัญ**: Marker interface สำหรับ Commands
+- **เหตุผล**: Type safety, แยก Command กับ Query ชัดเจน, ป้องกัน accidental reads ใน write operations
+
+#### **CQRS/ICommandHandler.cs**
+```csharp
+public interface ICommandHandler<TCommand, TResult> 
+    where TCommand : ICommand<TResult>
+{
+    Task<TResult> HandleAsync(TCommand command, CancellationToken ct);
+}
+```
+- **ความสำคัญ**: Contract สำหรับ handling write operations
+- **เหตุผล**: Force async pattern, Support cancellation, Return type safety
+
+#### **CQRS/IQuery.cs**
+```csharp
+public interface IQuery<TResult> { }
+```
+- **ความสำคัญ**: Marker interface สำหรับ Queries
+- **เหตุผล**: แยก read operations, ป้องกัน writes ใน query, Enable caching strategies
+
+#### **CQRS/IQueryHandler.cs**
+```csharp
+public interface IQueryHandler<TQuery, TResult> 
+    where TQuery : IQuery<TResult>
+{
+    Task<TResult> HandleAsync(TQuery query, CancellationToken ct);
+}
+```
+- **ความสำคัญ**: Contract สำหรับ read operations
+- **เหตุผล**: Enforce Dapper usage, Support result caching, Read-only guarantee
+
+#### **Events/IEvent.cs**
+```csharp
+public interface IEvent 
+{
+    DateTime OccurredAt { get; }
+    string EventId { get; }
+}
+```
+- **ความสำคัญ**: Base for all domain events
+- **เหตุผล**: Event sourcing ready, Audit trail, Async communication between modules
+
+#### **Events/IEventHandler.cs**
+```csharp
+public interface IEventHandler<TEvent> where TEvent : IEvent
+{
+    Task HandleAsync(TEvent evt, CancellationToken ct);
+}
+```
+- **ความสำคัญ**: Contract for event processing
+- **เหตุผล**: Decouple modules, Support Wolverine integration, Enable saga patterns
+
+### **eRFX.BuildingBlocks.Infrastructure/**
+
+#### **CQRS/CommandDispatcher.cs**
+```csharp
+public class CommandDispatcher : ICommandDispatcher
+{
+    private readonly IServiceProvider _serviceProvider;
+    
+    public async Task<TResult> SendAsync<TResult>(ICommand<TResult> command)
+    {
+        var handlerType = typeof(ICommandHandler<,>)
+            .MakeGenericType(command.GetType(), typeof(TResult));
+        
+        dynamic handler = _serviceProvider.GetRequiredService(handlerType);
+        return await handler.HandleAsync((dynamic)command, CancellationToken.None);
+    }
+}
+```
+- **ความสำคัญ**: Central point for command routing
+- **เหตุผล**: ไม่ใช้ MediatR (overhead น้อยกว่า), Direct DI resolution, Custom middleware support
+
+#### **CQRS/QueryDispatcher.cs**
+```csharp
+public class QueryDispatcher : IQueryDispatcher
+{
+    private readonly IServiceProvider _serviceProvider;
+    private readonly IMemoryCache _cache;
+    
+    public async Task<TResult> QueryAsync<TResult>(IQuery<TResult> query)
+    {
+        // Check cache first
+        var cacheKey = GenerateCacheKey(query);
+        if (_cache.TryGetValue(cacheKey, out TResult cached))
+            return cached;
+            
+        // Execute query
+        var handlerType = typeof(IQueryHandler<,>)
+            .MakeGenericType(query.GetType(), typeof(TResult));
+            
+        dynamic handler = _serviceProvider.GetRequiredService(handlerType);
+        var result = await handler.HandleAsync((dynamic)query, CancellationToken.None);
+        
+        // Cache result
+        _cache.Set(cacheKey, result, TimeSpan.FromMinutes(5));
+        
+        return result;
+    }
+}
+```
+- **ความสำคัญ**: Central query routing with caching
+- **เหตุผล**: Built-in caching, Performance optimization, Monitoring point
+
+#### **Events/EventBus.cs**
+```csharp
+public class EventBus : IEventBus
+{
+    private readonly IServiceProvider _serviceProvider;
+    private readonly IMessageBus _wolverine;
+    
+    public async Task PublishAsync<TEvent>(TEvent evt) where TEvent : IEvent
+    {
+        // Local handlers first (sync)
+        var handlers = _serviceProvider.GetServices<IEventHandler<TEvent>>();
+        foreach (var handler in handlers)
+        {
+            await handler.HandleAsync(evt, CancellationToken.None);
+        }
+        
+        // Then async via Wolverine
+        await _wolverine.PublishAsync(evt);
+    }
+}
+```
+- **ความสำคัญ**: Event distribution mechanism
+- **เหตุผล**: Support both sync/async, Integration point for Wolverine, Module decoupling
+
+### **ทำไมแยก Abstractions กับ Infrastructure:**
+
+1. **Clean Dependencies** - Modules พึ่งพา interfaces ไม่ใช่ implementations
+2. **Testability** - Mock interfaces ได้ง่าย
+3. **Flexibility** - เปลี่ยน implementation ได้โดยไม่กระทบ modules
+4. **NuGet Ready** - Publish Abstractions เป็น package แยกได้
+
+### **ทำไมไม่ใช้ MediatR:**
+
+1. **Performance** - Direct DI resolution เร็วกว่า reflection
+2. **Debugging** - Stack trace ชัดเจนกว่า
+3. **Control** - ควบคุม caching และ error handling ได้เต็มที่
+4. **Learning Curve** - Team เข้าใจง่ายกว่า

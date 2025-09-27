@@ -1,0 +1,347 @@
+## **eRFX Folder Structure Best Practices**
+
+### **Complete Project Structure**
+
+```
+eRFX/
+├── src/
+│   ├── 01-BuildingBlocks/              # Core abstractions (no dependencies)
+│   ├── 02-Shared/                      # Shared kernel (minimal dependencies)
+│   ├── 03-Modules/                     # Business modules (domain logic)
+│   ├── 04-API/                         # Presentation layer
+│   └── 05-Persistence/                 # Database layer
+├── tests/
+│   ├── 01-UnitTests/
+│   ├── 02-IntegrationTests/
+│   └── 03-FunctionalTests/
+├── scripts/
+│   ├── database/
+│   └── deployment/
+├── docs/
+│   ├── api/
+│   └── architecture/
+└── tools/
+    └── analyzers/
+```
+
+## **1. Module Internal Structure**
+
+### **Standard Module Layout**
+```
+eRFX.Modules.{ModuleName}/
+├── Core/                               # Domain layer
+│   ├── ValueObjects/                   # Business concepts
+│   ├── Specifications/                 # Query specifications
+│   ├── DomainServices/                 # Domain logic services
+│   ├── Interfaces/                     # Domain contracts
+│   ├── Events/                         # Domain events
+│   └── Exceptions/                     # Domain exceptions
+├── Application/                        # Use case layer
+│   ├── Commands/                       # Write operations
+│   │   └── {CommandName}/
+│   │       ├── {CommandName}Command.cs
+│   │       ├── {CommandName}CommandHandler.cs
+│   │       ├── {CommandName}Validator.cs
+│   │       └── {CommandName}Result.cs
+│   ├── Queries/                        # Read operations
+│   │   └── {QueryName}/
+│   │       ├── {QueryName}Query.cs
+│   │       ├── {QueryName}QueryHandler.cs
+│   │       └── {QueryName}ViewModel.cs
+│   ├── DTOs/                           # Data transfer objects
+│   ├── Services/                       # Application services
+│   ├── EventHandlers/                  # Event handlers
+│   └── Validators/                     # Shared validators
+└── Infrastructure/                     # External dependencies
+    ├── Persistence/                    # EF Core repositories
+    ├── Queries/                        # Dapper query services
+    ├── ExternalServices/               # Third-party integrations
+    ├── Caching/                        # Cache implementations
+    └── Messaging/                      # Message handlers
+```
+
+### **Why This Structure:**
+- **Screaming Architecture** - โครงสร้างบอกว่าทำอะไร ไม่ใช่ใช้ tech อะไร
+- **Dependency Direction** - Infrastructure → Application → Core (never reverse)
+- **Feature Cohesion** - Related files อยู่ด้วยกัน
+- **Easy Navigation** - หา code ง่ายตาม business feature
+
+## **2. Command/Query Organization**
+
+### **Command Structure**
+```
+Commands/
+└── CreateRfq/
+    ├── CreateRfqCommand.cs            # Input
+    ├── CreateRfqCommandHandler.cs     # Logic
+    ├── CreateRfqValidator.cs          # Validation
+    └── CreateRfqResult.cs             # Output
+```
+
+**Best Practice:**
+- **Folder per operation** - ทุกอย่างของ feature เดียวอยู่ที่เดียว
+- **Consistent naming** - {Action}{Entity}{Type}.cs
+- **Single responsibility** - แต่ละ class ทำอย่างเดียว
+
+### **Query Structure**
+```
+Queries/
+└── GetRfqList/
+    ├── GetRfqListQuery.cs             # Parameters
+    ├── GetRfqListQueryHandler.cs      # Logic + Caching
+    └── RfqListViewModel.cs            # Result
+```
+
+## **3. Test Project Structure**
+
+```
+tests/
+├── 01-UnitTests/
+│   └── eRFX.Modules.RFQ.Tests/
+│       ├── Core/
+│       │   ├── ValueObjects/
+│       │   │   └── RfqStatusTests.cs
+│       │   └── Specifications/
+│       │       └── ActiveRfqSpecificationTests.cs
+│       ├── Application/
+│       │   ├── Commands/
+│       │   │   └── CreateRfqCommandHandlerTests.cs
+│       │   └── Validators/
+│       │       └── CreateRfqValidatorTests.cs
+│       └── TestHelpers/
+│           ├── Builders/              # Test data builders
+│           └── Fixtures/              # Shared test setup
+│
+├── 02-IntegrationTests/
+│   └── eRFX.IntegrationTests/
+│       ├── Database/
+│       │   └── RfqRepositoryTests.cs
+│       ├── API/
+│       │   └── RfqControllerTests.cs
+│       └── TestInfrastructure/
+│           ├── TestDbContext.cs
+│           └── WebApplicationFactory.cs
+│
+└── 03-FunctionalTests/
+    └── eRFX.FunctionalTests/
+        ├── Scenarios/
+        │   └── CreateRfqScenario.cs
+        └── PageObjects/
+            └── RfqPage.cs
+```
+
+**Test Organization Best Practices:**
+- **Mirror source structure** - Test folder = Source folder
+- **Test file naming** - {ClassName}Tests.cs
+- **Arrange-Act-Assert** - Standard test structure
+- **Builder pattern** - For test data creation
+
+## **4. API Layer Structure**
+
+```
+eRFX.API/
+├── Controllers/
+│   ├── Internal/                      # Internal user controllers
+│   │   ├── RfqController.cs
+│   │   └── UserController.cs
+│   └── Supplier/                      # Supplier portal controllers
+│       └── QuotationController.cs
+├── Hubs/
+│   └── NotificationHub.cs
+├── DTOs/
+│   ├── Requests/
+│   │   └── CreateRfqRequest.cs
+│   └── Responses/
+│       └── RfqResponse.cs
+├── Filters/
+│   ├── AuditAttribute.cs
+│   └── GlobalExceptionFilter.cs
+├── Middleware/
+│   ├── AudienceValidationMiddleware.cs
+│   └── RequestTimingMiddleware.cs
+├── Authorization/
+│   ├── Handlers/
+│   └── Requirements/
+├── Extensions/
+│   ├── ServiceCollectionExtensions.cs
+│   └── ApplicationBuilderExtensions.cs
+├── Swagger/
+│   └── SwaggerConfiguration.cs
+└── Program.cs
+```
+
+## **5. Persistence Layer Structure**
+
+```
+eRFX.Persistence/
+├── Generated/                         # DO NOT EDIT
+│   ├── Entities/
+│   │   ├── Rfq.cs
+│   │   └── RfqItem.cs
+│   └── ErfxDbContext.Generated.cs
+├── Extensions/                        # SAFE TO EDIT
+│   ├── EntityExtensions/
+│   │   ├── RfqExtensions.cs         # Partial class extensions
+│   │   └── UserExtensions.cs
+│   └── ModelBuilderExtensions/
+│       └── RfqConfiguration.cs      # Additional EF config
+├── Migrations/                        # If using Code-First
+└── Scripts/
+    ├── erfq-db-schema-v62.sql
+    └── erfq-master-data-v61.sql
+```
+
+**Database-First Best Practices:**
+- **Never edit Generated folder** - Will be overwritten
+- **Use partial classes** - For business logic
+- **Keep scripts versioned** - Source of truth for schema
+
+## **6. Configuration Files Structure**
+
+```
+eRFX/
+├── appsettings.json                  # Base configuration
+├── appsettings.Development.json      # Dev overrides
+├── appsettings.Production.json       # Prod settings
+├── .editorconfig                     # Code style rules
+├── Directory.Build.props             # MSBuild defaults
+├── Directory.Packages.props          # Central package versions
+├── global.json                       # SDK version
+└── nuget.config                      # Package sources
+```
+
+## **7. Solution File Organization**
+
+```xml
+<Solution>
+  <SolutionFolder Name="1-BuildingBlocks">
+    <Project>eRFX.BuildingBlocks.Abstractions</Project>
+    <Project>eRFX.BuildingBlocks.Infrastructure</Project>
+  </SolutionFolder>
+  
+  <SolutionFolder Name="2-Shared">
+    <Project>eRFX.Shared.Abstractions</Project>
+    <Project>eRFX.Shared.Infrastructure</Project>
+  </SolutionFolder>
+  
+  <SolutionFolder Name="3-Modules">
+    <SolutionFolder Name="RFQ">
+      <Project>eRFX.Modules.RFQ.Core</Project>
+      <Project>eRFX.Modules.RFQ.Application</Project>
+      <Project>eRFX.Modules.RFQ.Infrastructure</Project>
+    </SolutionFolder>
+  </SolutionFolder>
+  
+  <SolutionFolder Name="4-API">
+    <Project>eRFX.API</Project>
+  </SolutionFolder>
+  
+  <SolutionFolder Name="5-Tests">
+    <Project>eRFX.UnitTests</Project>
+    <Project>eRFX.IntegrationTests</Project>
+  </SolutionFolder>
+</Solution>
+```
+
+## **8. Naming Conventions**
+
+### **Folders:**
+- **PascalCase** for C# folders: `Commands/`, `Queries/`
+- **kebab-case** for non-code: `docs/`, `scripts/`
+- **Numbered prefix** for order: `01-BuildingBlocks/`
+
+### **Files:**
+- **Commands**: `{Action}{Entity}Command.cs`
+- **Queries**: `Get{Entity}{Suffix}Query.cs`
+- **Handlers**: `{Command/Query}Handler.cs`
+- **ViewModels**: `{Entity}{Purpose}ViewModel.cs`
+- **DTOs**: `{Entity}{Purpose}Dto.cs`
+
+### **Namespaces:**
+```csharp
+// Match folder structure
+namespace eRFX.Modules.RFQ.Application.Commands.CreateRfq;
+namespace eRFX.Modules.RFQ.Core.ValueObjects;
+namespace eRFX.API.Controllers.Internal;
+```
+
+## **9. Anti-patterns to Avoid**
+
+### **❌ Wrong:**
+```
+Modules/
+└── RFQ/
+    ├── Models/          # Too generic
+    ├── Helpers/         # Junk drawer
+    ├── Utils/           # Unclear purpose
+    └── Managers/        # God classes
+```
+
+### **✅ Correct:**
+```
+Modules/
+└── RFQ/
+    ├── Commands/        # Clear purpose
+    ├── Queries/         # Specific responsibility
+    ├── Services/        # Domain services
+    └── ValueObjects/    # Business concepts
+```
+
+## **10. Module Dependencies Rules**
+
+```mermaid
+graph TD
+    API --> Modules
+    Modules --> Shared
+    Shared --> BuildingBlocks
+    Infrastructure --> Application
+    Application --> Core
+    
+    API -.X.-> Core
+    Core -.X.-> Infrastructure
+```
+
+**Rules:**
+1. **Core** → No dependencies (pure domain)
+2. **Application** → Depends on Core only
+3. **Infrastructure** → Depends on Application & Core
+4. **API** → Depends on all modules
+5. **No circular dependencies**
+6. **No cross-module direct references**
+
+## **11. Feature Folder Alternative**
+
+```
+# Alternative: Vertical Slice Architecture
+Features/
+└── CreateRfq/
+    ├── CreateRfqCommand.cs
+    ├── CreateRfqCommandHandler.cs
+    ├── CreateRfqValidator.cs
+    ├── CreateRfqController.cs
+    ├── CreateRfqRepository.cs
+    └── CreateRfqTests.cs
+```
+
+**When to use:**
+- Small team (< 5 developers)
+- Rapid prototyping
+- Microservice extraction planned
+
+**When NOT to use:**
+- Large team (our case)
+- Complex domain logic
+- Multiple presentation layers
+
+## **Summary - Key Principles:**
+
+1. **Screaming Architecture** - Folders บอก business ไม่ใช่ technology
+2. **Dependency Inversion** - Abstractions ใน Core, Implementations ใน Infrastructure  
+3. **Feature Cohesion** - Related files together
+4. **Consistent Naming** - Predictable file locations
+5. **Testable Structure** - Mirror source in tests
+6. **No Junk Drawers** - No "Helpers", "Utils", "Managers"
+7. **Clear Boundaries** - Module separation
+8. **Database-First Reality** - Generated + Extensions pattern
+9. **Numbered Folders** - Show dependency order
+10. **Business over Technical** - Organize by feature not by pattern
