@@ -21,7 +21,7 @@ INSERT INTO "Currencies" ("CurrencyCode", "CurrencyName", "CurrencySymbol", "Dec
 ('AUD', 'Australian Dollar', 'A$', 2, TRUE),
 ('HKD', 'Hong Kong Dollar', 'HK$', 2, TRUE)
 ON CONFLICT ("CurrencyCode") DO NOTHING;
-
+-- india , indonisia ,Veitenam
 -- =============================================
 -- SECTION 2: COUNTRIES (ประเทศ)
 -- =============================================
@@ -38,7 +38,7 @@ INSERT INTO "Countries" ("CountryCode", "CountryNameEn", "CountryNameTh", "Defau
 ('HK', 'Hong Kong', 'ฮ่องกง', (SELECT "Id" FROM "Currencies" WHERE "CurrencyCode" = 'HKD'), 'Asia/Hong_Kong', '+852', TRUE),
 ('VN', 'Vietnam', 'เวียดนาม', (SELECT "Id" FROM "Currencies" WHERE "CurrencyCode" = 'USD'), 'Asia/Ho_Chi_Minh', '+84', TRUE)
 ON CONFLICT ("CountryCode") DO NOTHING;
-
+-- india , indonisia ,Veitenam
 -- =============================================
 -- SECTION 3: BUSINESS TYPES (ประเภทธุรกิจ)
 -- =============================================

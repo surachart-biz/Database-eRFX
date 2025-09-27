@@ -1,5 +1,5 @@
 🔶 PURCHASING APPROVER WORKFLOW
-หน้าจอ  Previewตรวจ Supplierลงทะเบียนครั้งที่ 2
+### หน้าจอ Previewตรวจ Supplierลงทะเบียนครั้งที่ 2
 โหลด Form หน้าจอ ลงทะเบียน/แก้ไข Supplier (read only)
 ดำเนินการบนหน้าจอ 
 ปุ่ม Declined:  
@@ -7,7 +7,7 @@
 ปุ่ม Accept:
  ฟังก์ชัน: ปรับสถานะเป็น “Completed”  ส่งอีเมลแจ้ง  “Purchasing” พร้อมเด้ง Notification และส่ง อีเมลรับคำเชิญเสนอราคา ไปหา Supplierโดยจะมีข้อมูลเมล์ในตารางซึ่ง Supplier มีได้หลาย contact สมมุติ มี contact 5 คน จะส่งเมล์ทั้งหมด จะเข้ามา ตอบรับหรือปฏิเสธ ที่จะเข้าร่วมเสนอราคาเอง 
 
-หน้าจอ  Preview Supplier เสนอราคา(Re-Bid Case) เงื่อนไข ถ้า สถานะ Re-Bid
+### หน้าจอ Preview Supplier เสนอราคา(Re-Bid Case) เงื่อนไข ถ้า สถานะ Re-Bid
 โหลด Form  หน้าจอ Preview Supplier เสนอราคา (ที่ PURCHASING Select Winners)
 ถ้า สถานะ Re-Bid ต้องแสดง การ์ดสถานะ และเหตุผล
 การดำเนินการบนหน้าจอ
@@ -18,7 +18,7 @@
 ปุ่ม Re-Bid : 
  ฟังก์ชัน: ปรับสถานะเป็น “Declined ” ส่งเมล์ไปหา “Purchasing” พร้อมเด้ง Notification ซึ่ง “Purchasing” จะกลับไปเริ่ม หน้าจอ Review & Invite (Declined Case) เพิ่ม/เชิญ Supplier เสนอราคาใหม่อีกครั้ง
 
-หน้าจอ  Preview Supplier เสนอราคา 
+### หน้าจอ Preview Supplier เสนอราคา 
 โหลด Form  หน้าจอ Preview Supplier เสนอราคา (ที่ PURCHASING Select Winners)
 หัวข้อ สินค้า
 Col ลำดับ | รหัส | สินค้า | ยี่ห้อ | รุ่น | จำนวน | หน่วย | 
@@ -74,6 +74,9 @@ Col ชื่อบริษัท/หน่วยงาน
 	BW คำถามที่ถามจัดซื้อ 4 hours ago
 	จัดซื้อ คำตอบที่จัดซื้อตอบ 1 day ago
 การดำเนินการบนหน้าจอ
+radio ต้องการให้ระบบแจ้งผลไปยังผู้ชนะทางอีเมลหรือไม่ ?
+	ต้องการ    ระบบจะส่งเมล์ไป supplier ผู้ชนะ และ contact ที่ได้งาน
+	ไม่ต้องการ   ไม่ส่งเมล์
 ปุ่ม Reject: 
 ฟังก์ชัน: pop up ระบุเหตุผล หลังจาก submit ปรับสถานะเป็น “Rejected ”  และส่งเมล์กลับไปหา ผู้ร้องขอ (Requester) พร้อมเด้ง Notification 
  และถ้าก่อนหน้านี้มีการอนุมัติตามลำดับชั้นมา เช่น (APPROVER Level 1,ถ้ามี ? APPROVER Level 2) ก็จะส่งเมล์ พร้อมเด้ง Notification 
