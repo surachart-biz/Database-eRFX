@@ -211,9 +211,13 @@ eRFX/
 				├── ExternalServices/   			# APIs
 				└── Caching/           				# Cache logic
 │   │   ├── Supplier/
+			└── [Similar structure]
 │   │   ├── Quotation/
+			└── [Similar structure]
 │   │   ├── User/
+				└── [Similar structure]
 │   │   └── Notification/
+				└── [Similar structure]
 │   │
 │   ├── 04-API/
 │   │   └── eRFX.API/

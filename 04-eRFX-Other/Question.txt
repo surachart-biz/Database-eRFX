@@ -1,0 +1,141 @@
+ตอบ❓คำถามเพื่อความชัดเจน:
+1. User & Role Management
+Multi-role: User 1 คนสามารถมีหลาย Role ได้ แต่มีข้อจำกัดว่า Requester ไม่สามารถเป็น Purchasing และ Approver - ถูกต้องใช่ไหมครับ?
+ตอบ  ถูกต้อง
+Role hierarchy: Approver มีหลาย level ตามลำดับชั้น - จำนวน level สูงสุดเท่าไหร่ครับ? หรือไม่จำกัด?
+ตอบ  ไม่เกิน 3
+Department binding: User บางคนมีหลายบริษัท/หลายฝ่ายงาน - binding นี้ผูกกับ Role ด้วยหรือไม่? (เช่น User A เป็น Requester ที่บริษัท X แต่เป็น Approver ที่บริษัท Y ได้ไหม?)
+ตอบ	จากการยกตัวอย่าง เช่น User A เป็น Requester ที่บริษัท X แต่เป็น Approver ที่บริษัท Y ได้ไหม? ไม่ได้อยู่แล้วจะผิดกฤข้อที่ 1 Requester ไม่สามารถเป็น Purchasing และ Approver แต่ถ้า User A เป็น Requester ที่บริษัท X แต่เป็น Requester ที่บริษัท Y ได้
+2.Category & Subcategory
+Serial Number: ในเอกสารระบุว่า Subcategory มี field IsUseSerial (Y/N) - Serial Number นี้ใช้ทำอะไรครับ?
+ตอบ	ถ้า Subcategory ถูก ตั้งค่าให้ สมมุติ IsUseSerialแปลว่า การสร้าง สร้างใบขอราคา input Serial Number ต้องบังคับกรอก
+Duration: Subcategory มี field Duration สำหรับคำนวณวันที่ต้องการใบเสนอราคา - Duration นี้เป็นจำนวนวันใช่ไหมครับ?
+ตอบ	ใช่
+Document Requirements: Subcategory กำหนด document ที่ต้อง upload (ชื่อ, IsRequired) - มี limit จำนวน document ต่อ Subcategory ไหมครับ?
+ตอบ	ไม่มี และ ไม่เกิน 30 mb ต่อไฟล์
+3.RFQ Number Format
+เอกสารมี 2 format:
+-Com-yy-mm-xxxx (ตัวอย่างทั่วไป)
+-ShortNameEn-yy-mm-xxxx (format จริง เช่น ปป-01-0001)
+ตอบ	ใช้  ShortNameEn-yy-mm-xxxx
+ShortNameEn มาจากไหนครับ? (Company? Department? Category?)
+ตอบ	ชื่อย่อCompany +  ปี-เดือน-xxxx (runging code เริ่มต้น 0001เพิ่มไปเรื่อยๆ)
+4.Supplier Management
+Multiple Contacts: Supplier มีได้หลาย contact และส่ง email ไปทั้งหมด - มี primary contact ไหมครับ?
+ตอบ	มี
+Supplier Categories: Supplier ผูกกับ Category/Subcategory - 1 Supplier สามารถอยู่หลาย Category ได้ไหมครับ?
+ตอบ	ได้
+5.Exchange Rate
+Update Frequency: อัปเดตเดือนละครั้ง - เก็บ history ของ exchange rate ไหมครับ? (สำหรับดูย้อนหลัง)  
+ตอบ	ใช่ เก็บ history
+Currency Calculation: ถ้า Supplier เสนอราคาเป็นสกุลเงินต่างจาก Company - ใช้ rate ณ วันที่ใดในการคำนวณครับ? (วันที่เสนอราคา? วันที่สร้าง RFQ?)
+ตอบ	Lock rate ไว้ ณ วันเวลาที่ปิดการเสนอหรือหมดเวลาเสนอราคา
+6.Workflow Status
+Soft Delete: ระบุว่า delete user เป็น soft delete - RFQ, Quotation และ entity อื่นๆ ใช้ soft delete ด้วยไหมครับ?
+ตอบ	ใช้กับ user เท่านั้น
+Status Tracking: ต้องการเก็บ history ของการเปลี่ยน status (audit log) ไหมครับ?
+ตอบ	เก็บ history ทุก status change
+7.Notification System
+Notification Types: มีทั้ง in-app และ email - ต้องเก็บ read/unread status ไหมครับ?
+ตอบ	ต้องเก็บ
+Reminder Logic: ระบุว่าถ้าไม่มี action ใน 2 วัน จะแจ้งเตือน - logic นี้ต้องเก็บ last action timestamp ไหมครับ?
+ตอบ	เก็บ last_action_at และ reminder timestamps
+8.File Management
+File Storage: เอกสารที่ upload (PDF, Excel, etc.) - เก็บ path อย่างเดียว หรือต้องเก็บ metadata อื่นๆ ด้วยครับ? (size, mime type, uploaded by, etc.)
+ตอบ	uploaded by
+File Versioning: ถ้า Supplier แก้ไขใบเสนอราคา - เก็บ version เก่าไว้ไหมครับ?
+ตอบ	ไม่เก็บ
+9.Q&A System
+Thread Structure: ถาม-ตอบระหว่าง Supplier กับ Purchasing - เป็น thread แบบ linear หรือมี reply to specific message ครับ?
+ตอบ	Linear per Supplier (แยก thread ตาม Supplier)
+10.Performance Metrics
+On Time/Delay: ต้องเก็บ metrics อะไรบ้างครับ? (response time, processing time, etc.)
+ตอบ	เก็บ timestamp ทุกจุดสำคัญ, ใช้ materialized view สำหรับ dashboard
+Dashboard Data: Dashboard แสดงข้อมูล realtime - ต้องมี materialized view หรือ caching strategy ไหมครับ?
+ตอบ	มี
+ตอบ❓ คำถามเพิ่มเติมเพื่อความชัดเจน
+1.User-Company Binding
+User ที่อยู่หลายบริษัท จะมี Role แยกตามบริษัทหรือไม่?
+ตัวอย่าง: User A ที่บริษัท X เป็น Purchasing แต่ที่บริษัท Y เป็น Requester ได้ไหม?
+ตอบ	ได้ 
+2.Supplier Registration
+Supplier สามารถลงทะเบียนเองหรือต้องให้ Admin/Purchasing เพิ่มให้?
+ตอบ	ผ่านการเชิญเท่านั้น
+Supplier Contact ที่เป็น User ในระบบ จะมี UserId หรือแยกเป็นคนละ Entity?
+ตอบ	แยกเป็นคนละ Entity
+3.Category Management
+Category/Subcategory ใช้ร่วมกันทุกบริษัทหรือแยกตามบริษัท?
+ตอบ	ใช้ร่วมกันทุกบริษัท
+Purchasing ที่ผูกกับ Category A จะเห็นเฉพาะ RFQ ของ Category A เท่านั้นใช่ไหม?
+ตอบ	ใช่
+4.Approval Chain
+Approver Level 1-3 กำหนดตาม Amount หรือตาม Hierarchy?
+ตอบ	Hierarchy → Mapping ตามตำแหน่ง/ระดับ
+ถ้า Approver คนใดคนหนึ่งไม่อยู่ มีระบบ Delegation หรือไม่?
+ตอบ	ต้องมี Delegation
+5.Multi-Company Operations
+RFQ จากบริษัท A สามารถเชิญ Supplier ที่ลงทะเบียนกับบริษัท B ได้ไหม?
+ตอบ	ได้   
+Exchange Rate ใช้ร่วมกันทุกบริษัทหรือแยกตามบริษัท?
+ตอบ	ใช้ร่วมกันทุกบริษัท
+6.Supplier Contact Management
+เมื่อ Supplier มีหลาย Contact แล้วส่งอีเมลไปทั้งหมด - มีการ track ว่าใครเปิดอ่านบ้างไหม?
+ตอบ	ไม่ต้องการ
+Contact สามารถมีสิทธิ์ต่างกันในการทำ Quotation ไหม?
+ตอบ	ไม่ต้องการ
+7.Permission Inheritance
+Admin ที่บริษัท A จะจัดการได้เฉพาะ User ของบริษัท A หรือจัดการได้ทั้งระบบ?
+ตอบ	ถ้าทั้งระบบ
+Super Admin มีกี่คน และใครเป็นคนกำหนด?
+ตอบ	1 คน
+ตอบ❓ คำถามเพิ่มเติมเพื่อความชัดเจน:
+1. Supplier Registration
+Multiple Registration: Supplier สามารถลงทะเบียนซ้ำสำหรับ Category ใหม่ได้ไหม? หรือใช้ข้อมูลเดิมเพิ่ม Category?
+ตอบ	ได้
+Expiry: การอนุมัติ Supplier มีวันหมดอายุไหม? ต้อง renew ไหม?
+ตอบ	ไม่มี  เรามีการแจ้งเตือนแต่ละ role อยู่แล้ว คิดว่าเพียงพอ
+Blacklist: มีระบบ Blacklist Supplier ไหม? กรณีไหนบ้าง?
+ตอบ	ไม่มี
+2. Supplier Evaluation
+Performance Tracking: ระบบเก็บ metrics อะไรบ้างสำหรับประเมิน Supplier?
+-On-time delivery, -Quality score,-Response rate,-Win rate
+ตอบ	ไม่ต้องการ
+Rating System: มีระบบให้คะแนน Supplier หลังจบ project ไหม?
+ตอบ	ไม่ต้องการ
+Historical Data: เก็บประวัติการทำงานกับ Supplier ย้อนหลังกี่ปี?
+ตอบ	ไม่ต้องการ
+3. Supplier Portal
+Self-Service: Supplier สามารถ update ข้อมูลบริษัทเองได้ไหม?
+ตอบ	ได้ Purchasing จะเป็นคนตรวจสอบ ถ้าไม่ผ่านจะให้ อีเมลให้แก่ไขข้อมูล
+Document Management: Supplier สามารถ upload เอกสารใหม่ทดแทนเอกสารเก่าได้ไหม?
+ตอบ	ได้  แต่ต้องส่งให้ Purchasing review ตาม flow อยู่ดี?
+Notification Preferences: Supplier สามารถตั้งค่าการแจ้งเตือนได้ไหม?
+ตอบ	ไม่ได้
+4. Business Rules
+Minimum Suppliers: ต้องมี Supplier อย่างน้อยกี่รายต่อ RFQ?
+ตอบ	ไม่จำกัด
+Auto-Rejection: มีเงื่อนไขอะไรที่ทำให้ Supplier ถูก reject อัตโนมัติไหม?
+ตอบ	ไม่มี
+Conflict of Interest: มีการตรวจสอบ conflict of interest ไหม? (เช่น Supplier เป็นบริษัทในเครือ)
+ตอบ	ไม่มี ไม่ต้องทำ
+5. Integration & Security
+External Verification: มีการเชื่อมต่อกับระบบภายนอกเพื่อตรวจสอบข้อมูล Supplier ไหม? (เช่น DBD, กรมสรรพากร)
+ตอบ	ไม่มี ไม่ต้องทำ
+Data Privacy: ข้อมูล Supplier แต่ละรายเห็นข้อมูลของกันและกันไหม?
+ตอบ	ไม่ได้
+Bid Confidentiality: ราคาเสนอของแต่ละ Supplier เป็นความลับไหม?
+ตอบ	มี ปัจจุบันมีหน้าจอ ui ถ้ายังไม่เลย วันที่สิ้นสุดการเสนอราคา  และ เวลา จะเห็น หน้า Preview Supplier เสนอราคา (ปิดราคา)  ถ้าหมดจะไปหน้า Preview Supplier เสนอราคา (Select winners)
+6. Special Cases
+International Suppliers: รองรับ Supplier ต่างประเทศไหม? ต้องมีเอกสารเพิ่มเติมอะไร?
+ตอบ	รองรับ Supplier ต่างประเทศ อยู่แล้ว
+Consortium/Joint Venture: รองรับการเสนอราคาแบบกลุ่มบริษัทไหม?
+ตอบ	ม่มี ไม่ต้องทำ
+Preferred Suppliers: มีระบบ Preferred/Strategic Supplier ที่ได้สิทธิพิเศษไหม?
+ตอบ	ม่มี ไม่ต้องทำ
+7. Workflow Exceptions
+Emergency Procurement: กรณีเร่งด่วน สามารถข้าม approval steps ได้ไหม?
+ตอบ	ไม่มี ไม่ต้องทำ
+Direct Award: มีกรณีที่เลือก Supplier โดยตรงโดยไม่ต้องแข่งขันไหม?
+ตอบ	ไม่มี ต้องเลือก
+Re-bidding: ถ้าไม่มี Supplier เสนอราคา หรือราคาสูงเกินงบ มี process อะไร?
+ตอบ	ไม่มี ปล่อย ตาม workflow
