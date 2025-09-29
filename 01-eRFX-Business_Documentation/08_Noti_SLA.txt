@@ -1,6 +1,6 @@
 user 1 คนมีได้ Role หลัก 1 role, Role รอง 1 role
 หมายเหตุ
- => ถ้าเป็น Requesterไม่สามารถเป็น Purchasing  และ Approver 
+ => ถ้าเป็น Requesterไม่สามารถเป็น Purchasing หรือ Approver 
  => ถ้า เป็น Purchasing  สามารถ เป็น 1.0 สร้างใบขอราคา ได้ (role Requester)  
 user role บาง คน มีหลายบริษัท (เช่น user A role Requester อาจอยู่ 3 บริษัท )
 user role
@@ -49,3 +49,10 @@ IsUrgent = TRUE	                                งานเร่ง (วัน
 RequiredQuotationDate < NOW()	เลยวันที่ต้องการใบเสนอราคาแล้ว
 ทั้งสองเงื่อนไข	                                        งานเร่ง + เลยวันที่ต้องการแล้ว
 
+Draft auto-delete หลัง 3 วัน
+Lock Time: Exchange rates are locked at the exact date and time when quotation submission deadline is reached
+Rate Source: Uses active exchange rate at the moment of deadline
+Comparison: All price comparisons use converted prices (base currency)
+Ranking: Always rank by converted price for fairness
+Display: Always show both original currency price and converted price
+Immutable: Once locked, rates never change even if new rates are uploaded
