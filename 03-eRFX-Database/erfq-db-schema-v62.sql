@@ -1,6 +1,13 @@
 -- =============================================
--- E-RFQ SYSTEM COMPLETE DATABASE SCHEMA v6.2
+-- E-RFQ SYSTEM COMPLETE DATABASE SCHEMA v6.2.1
 -- Database: PostgreSQL 14+
+-- Last Updated: 2025-09-30
+--
+-- MAJOR CHANGES in v6.2.1:
+--   - Fixed UserCompanyRoles UNIQUE constraint to support multi-role per user
+--   - Added approval chain support (Department & Purchasing Approver)
+--   - Corrected table count (50 not 68)
+--   - Added 2 new indexes for approval chain queries
 
 -- =============================================
 -- SECTION 1: MASTER DATA & LOOKUPS
@@ -389,7 +396,10 @@ CREATE TABLE "UserCompanyRoles" (
   "UpdatedAt" TIMESTAMP,
   "UpdatedBy" BIGINT,
   
-  UNIQUE("UserId", "CompanyId"),
+  -- CHANGED v6.2.1: Removed UNIQUE(UserId, CompanyId) to allow one user to have multiple roles
+  -- in the same company (e.g., APPROVER for multiple departments, PURCHASING_APPROVER for multiple categories)
+  -- Constraint ensures one user cannot have the same role in the same department twice
+  UNIQUE("UserId", "CompanyId", "DepartmentId", "PrimaryRoleId"),
   CONSTRAINT "chk_role_rules" CHECK (
     NOT (
       ("PrimaryRoleId" = 3 AND "SecondaryRoleId" = 4) OR
@@ -402,6 +412,7 @@ CREATE TABLE "UserCompanyRoles" (
 
 COMMENT ON TABLE "UserCompanyRoles" IS 'บทบาทของ User ในแต่ละบริษัท';
 COMMENT ON COLUMN "UserCompanyRoles"."PositionId" IS 'ตำแหน่งงาน';
+COMMENT ON COLUMN "UserCompanyRoles"."ApproverLevel" IS 'ระดับผู้อนุมัติ (1-3) สำหรับ APPROVER และ PURCHASING_APPROVER - See idx_dept_approver_level_unique for constraint';
 
 -- 3.3 UserCategoryBindings
 CREATE TABLE "UserCategoryBindings" (
@@ -415,7 +426,7 @@ CREATE TABLE "UserCategoryBindings" (
   UNIQUE("UserCompanyRoleId", "CategoryId", "SubcategoryId")
 );
 
-COMMENT ON TABLE "UserCategoryBindings" IS 'กำหนด Category ที่ Purchasing รับผิดชอบ';
+COMMENT ON TABLE "UserCategoryBindings" IS 'กำหนด Category ที่ Purchasing/PURCHASING_APPROVER รับผิดชอบ (Purchasing Approver chain via UserCompanyRoles.ApproverLevel)';
 
 -- 3.4 Delegations
 CREATE TABLE "Delegations" (
@@ -1115,6 +1126,9 @@ CREATE INDEX "idx_user_company_roles_user" ON "UserCompanyRoles"("UserId");
 CREATE INDEX "idx_user_company_roles_company" ON "UserCompanyRoles"("CompanyId");
 CREATE INDEX "idx_user_company_roles_active" ON "UserCompanyRoles"("IsActive") WHERE "IsActive" = true;
 CREATE INDEX "idx_user_category_bindings" ON "UserCategoryBindings"("UserCompanyRoleId");
+-- NEW v6.2.1: Approval chain indexes
+CREATE UNIQUE INDEX "idx_dept_approver_level_unique" ON "UserCompanyRoles"("CompanyId", "DepartmentId", "ApproverLevel") WHERE "PrimaryRoleId" = 4 AND "DepartmentId" IS NOT NULL AND "ApproverLevel" IS NOT NULL AND "IsActive" = TRUE AND "EndDate" IS NULL;
+CREATE INDEX "idx_user_category_bindings_chain" ON "UserCategoryBindings"("CategoryId", "SubcategoryId", "UserCompanyRoleId") WHERE "IsActive" = TRUE;
 
 -- RFQ Indexes
 CREATE INDEX "idx_rfqs_status" ON "Rfqs"("Status");
@@ -1207,12 +1221,36 @@ CREATE INDEX "idx_notifications_unread" ON "Notifications"("UserId", "IsRead") W
 
 -- =============================================
 -- END OF DATABASE SCHEMA
--- Version: 6.2 (Complete Production Ready)
--- Total Tables: 68
--- Total Indexes: 87 (Complete Performance Optimization)
+-- Version: 6.2.1 (Approval Chain Support)
+-- Total Tables: 50 (CORRECTED from incorrect 68 stated in v6.2)
+-- Total Indexes: 89 (87 original + 2 new for approval chains)
+--
+-- Changes from v6.2:
+--   ✅ FIXED: UserCompanyRoles UNIQUE constraint to allow multi-role per user
+--            Old: UNIQUE(UserId, CompanyId) - too restrictive
+--            New: UNIQUE(UserId, CompanyId, DepartmentId, PrimaryRoleId)
+--            WHY: Support users being APPROVER for multiple departments
+--                 Support users being PURCHASING_APPROVER for multiple categories
+--   ✅ ADDED: Partial unique index "idx_dept_approver_level_unique" (Line 1130)
+--            Prevents duplicate ApproverLevel per Department (e.g., two Level 1 approvers)
+--            WHERE PrimaryRoleId = 4 (APPROVER) AND IsActive = TRUE AND EndDate IS NULL
+--   ✅ ADDED: Index "idx_user_category_bindings_chain" (Line 1131)
+--            Optimizes Purchasing Approver chain queries by Category/Subcategory
+--   ✅ FIXED: Table count correction (50 not 68)
+--
 -- Changes from v6.1:
 --   ✅ Added QuotationDocuments table
 --   ✅ Added RfqItemWinnerOverrides table
 --   ✅ Added Users.PreferredLanguage field
+--   ✅ Added SupplierContacts.PreferredLanguage field
 --   ✅ Added Complete Performance Indexes (87 total)
+--
+-- IMPORTANT APPLICATION REQUIREMENTS (v6.2.1):
+--   ⚠️  Department Approver: Database enforces via idx_dept_approver_level_unique (no duplicate levels)
+--   ⚠️  Purchasing Approver: Application MUST validate that ApproverLevel doesn't duplicate per Category
+--   ⚠️  Recommended: Validate all 3 levels are assigned before allowing RFQ routing
+--
+-- INDEX LOCATIONS (All indexes in INDEXES FOR PERFORMANCE section):
+--   - idx_dept_approver_level_unique: Line 1130 (partial unique index on UserCompanyRoles)
+--   - idx_user_category_bindings_chain: Line 1131 (composite index for chain queries)
 -- =============================================
