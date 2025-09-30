@@ -579,6 +579,7 @@ CREATE TABLE "Rfqs" (
   "JobTypeId" SMALLINT NOT NULL REFERENCES "JobTypes"("Id"),
   "RequesterId" BIGINT NOT NULL REFERENCES "Users"("Id"),
   "ResponsiblePersonId" BIGINT REFERENCES "Users"("Id"),
+  "ResponsiblePersonAssignedAt" TIMESTAMP,
   "RequesterEmail" VARCHAR(100),
   "RequesterPhone" VARCHAR(20),
   "BudgetAmount" DECIMAL(15,2),
@@ -619,6 +620,8 @@ CREATE TABLE "Rfqs" (
 );
 
 COMMENT ON TABLE "Rfqs" IS 'ใบขอเสนอราคา';
+COMMENT ON COLUMN "Rfqs"."ResponsiblePersonAssignedAt" IS
+  'เมื่อไหร่ที่ Purchasing รับมอบหมาย (Temporal Data Pattern - v6.2.2)';
 COMMENT ON COLUMN "Rfqs"."PurchasingRemarks" IS 'ข้อมูลเพิ่มเติมจาก Purchasing';
 
 -- 5.2 RfqItems
@@ -810,7 +813,7 @@ CREATE TABLE "QuotationItems" (
   "RfqItemId" BIGINT NOT NULL REFERENCES "RfqItems"("Id"),
   "UnitPrice" DECIMAL(18,4) NOT NULL,
   "Quantity" DECIMAL(12,4) NOT NULL,
-  "TotalPrice" DECIMAL(18,4) NOT NULL,
+  "TotalPrice" DECIMAL(18,4) GENERATED ALWAYS AS ("Quantity" * "UnitPrice") STORED,
   "ConvertedUnitPrice" DECIMAL(18,4),
   "ConvertedTotalPrice" DECIMAL(18,4),
   "CurrencyId" BIGINT REFERENCES "Currencies"("Id"),
@@ -828,6 +831,10 @@ CREATE TABLE "QuotationItems" (
 );
 
 COMMENT ON TABLE "QuotationItems" IS 'รายการในใบเสนอราคา (ไม่มี Quotations table แล้ว)';
+COMMENT ON COLUMN "QuotationItems"."TotalPrice" IS
+  'ราคารวม คำนวณ auto จาก (Quantity × UnitPrice) - GENERATED COLUMN (v6.2.2)
+   Business Rule: "ราคารวม จะคำนวณ auto จาก (จำนวนสินค้า*ราคาต่อหน่วย)"
+   Data Integrity: Cannot be manually set, database-enforced calculation';
 
 -- 7.4 QuotationDocuments (NEW in v6.2)
 CREATE TABLE "QuotationDocuments" (
@@ -954,11 +961,38 @@ CREATE TABLE "Notifications" (
   "ProcessedAt" TIMESTAMP,
   "CreatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   "CreatedBy" BIGINT,
-  
-  CONSTRAINT "chk_notification_priority" CHECK ("Priority" IN ('LOW','NORMAL','HIGH','URGENT'))
+
+  CONSTRAINT "chk_notification_priority" CHECK ("Priority" IN ('LOW','NORMAL','HIGH','URGENT')),
+  CONSTRAINT "chk_notification_icon" CHECK ("IconType" IN (
+    -- Status-based (RFQ Lifecycle)
+    'DRAFT_WARNING','PENDING_ACTION','APPROVED','DECLINED','REJECTED','COMPLETED','RE_BID',
+    -- Action-based (Workflow)
+    'ASSIGNED','INVITATION',
+    -- Supplier-related
+    'SUPPLIER_NEW','SUPPLIER_APPROVED','SUPPLIER_DECLINED',
+    -- Q&A
+    'QUESTION','REPLY',
+    -- Quotation & Winner
+    'QUOTATION_SUBMITTED','WINNER_SELECTED','WINNER_ANNOUNCED',
+    -- Time-related
+    'DEADLINE_EXTENDED','DEADLINE_WARNING','OVERDUE',
+    -- Generic
+    'EDIT','INFO'
+  ))
 );
 
 COMMENT ON TABLE "Notifications" IS 'การแจ้งเตือน (Enhanced for SMS & SignalR)';
+COMMENT ON COLUMN "Notifications"."IconType" IS
+  'ประเภทไอคอน สำหรับแสดงใน UI - Data Quality (v6.2.2)
+   22 valid values covering all business scenarios:
+   Status: DRAFT_WARNING, PENDING_ACTION, APPROVED, DECLINED, REJECTED, COMPLETED, RE_BID
+   Action: ASSIGNED, INVITATION
+   Supplier: SUPPLIER_NEW, SUPPLIER_APPROVED, SUPPLIER_DECLINED
+   Q&A: QUESTION, REPLY
+   Quotation: QUOTATION_SUBMITTED, WINNER_SELECTED, WINNER_ANNOUNCED
+   Time: DEADLINE_EXTENDED, DEADLINE_WARNING, OVERDUE
+   Generic: EDIT, INFO
+   Database-enforced enum prevents typos and invalid icon types';
 
 -- =============================================
 -- SECTION 10: FINANCIAL & EXCHANGE RATES
@@ -1221,9 +1255,22 @@ CREATE INDEX "idx_notifications_unread" ON "Notifications"("UserId", "IsRead") W
 
 -- =============================================
 -- END OF DATABASE SCHEMA
--- Version: 6.2.1 (Approval Chain Support)
+-- Version: 6.2.2 (Temporal Data Pattern - Purchasing Assignment)
 -- Total Tables: 50 (CORRECTED from incorrect 68 stated in v6.2)
 -- Total Indexes: 89 (87 original + 2 new for approval chains)
+--
+-- Changes from v6.2.1:
+--   ✅ ADDED: Rfqs.ResponsiblePersonAssignedAt TIMESTAMP (Line 582)
+--            Temporal Data Pattern: ResponsiblePersonId + ResponsiblePersonAssignedAt
+--            WHY: Track when Purchasing person was assigned (SLA, performance metrics, timeline)
+--            PATTERN: Follows CurrentActorId + CurrentActorReceivedAt pattern
+--            HYBRID: Denormalized for performance + RfqActorTimeline for complete history
+--   ✅ CHANGED: QuotationItems.TotalPrice → GENERATED COLUMN (Line 816)
+--            FROM: "TotalPrice" DECIMAL(18,4) NOT NULL
+--            TO:   "TotalPrice" DECIMAL(18,4) GENERATED ALWAYS AS ("Quantity" * "UnitPrice") STORED
+--            WHY: Data Integrity - Business Rule: "ราคารวม จะคำนวณ auto จาก (จำนวนสินค้า*ราคาต่อหน่วย)"
+--            BENEFIT: 100% Data Integrity, cannot insert wrong TotalPrice
+--            EF CORE: Compatible with EF Core 5.0+ (HasComputedColumnSql)
 --
 -- Changes from v6.2:
 --   ✅ FIXED: UserCompanyRoles UNIQUE constraint to allow multi-role per user
@@ -1245,10 +1292,15 @@ CREATE INDEX "idx_notifications_unread" ON "Notifications"("UserId", "IsRead") W
 --   ✅ Added SupplierContacts.PreferredLanguage field
 --   ✅ Added Complete Performance Indexes (87 total)
 --
--- IMPORTANT APPLICATION REQUIREMENTS (v6.2.1):
+-- IMPORTANT APPLICATION REQUIREMENTS (v6.2.2):
 --   ⚠️  Department Approver: Database enforces via idx_dept_approver_level_unique (no duplicate levels)
 --   ⚠️  Purchasing Approver: Application MUST validate that ApproverLevel doesn't duplicate per Category
 --   ⚠️  Recommended: Validate all 3 levels are assigned before allowing RFQ routing
+--   ⚠️  Purchasing Assignment: When updating ResponsiblePersonId, also set ResponsiblePersonAssignedAt = NOW()
+--   ⚠️  Timeline Tracking: Insert RfqActorTimeline record when assigning Purchasing person (Hybrid Pattern)
+--   ⚠️  QuotationItems.TotalPrice: GENERATED COLUMN - DO NOT assign value in INSERT/UPDATE
+--        EF Core config: .HasComputedColumnSql("\"Quantity\" * \"UnitPrice\"", stored: true)
+--        Entity: public decimal TotalPrice { get; private set; }  // No setter!
 --
 -- INDEX LOCATIONS (All indexes in INDEXES FOR PERFORMANCE section):
 --   - idx_dept_approver_level_unique: Line 1130 (partial unique index on UserCompanyRoles)
