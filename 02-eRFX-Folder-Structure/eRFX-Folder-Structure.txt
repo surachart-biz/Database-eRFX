@@ -3,25 +3,25 @@
 ### **Complete Project Structure**
 
 ```
-eRFX/
-├── src/
-│   ├── 01-BuildingBlocks/              # Core abstractions (no dependencies)
-│   ├── 02-Shared/                      # Shared kernel (minimal dependencies)
-│   ├── 03-Modules/                     # Business modules (domain logic)
-│   ├── 04-API/                         # Presentation layer
-│   └── 05-Persistence/                 # Database layer
-├── tests/
-│   ├── 01-UnitTests/
-│   ├── 02-IntegrationTests/
-│   └── 03-FunctionalTests/
-├── scripts/
-│   ├── database/
-│   └── deployment/
-├── docs/
-│   ├── api/
-│   └── architecture/
-└── tools/
-    └── analyzers/
+erfx.be/
+  ├── src/
+  │   ├── 01-BuildingBlocks/              # Core abstractions (no dependencies)
+  │   ├── 02-Shared/                      # Shared kernel (minimal dependencies)
+  │   ├── 03-Modules/                     # Business modules (domain logic)
+  │   ├── 04-API/                         # Presentation layer
+  │   └── 05-Persistence/                 # Database layer
+  ├── tests/
+  │   ├── 01-UnitTests/
+  │   ├── 02-IntegrationTests/
+  │   └── 03-FunctionalTests/
+  ├── scripts/
+  │   ├── database/
+  │   └── deployment/
+  ├── docs/
+  │   ├── api/
+  │   └── architecture/
+  └── tools/
+      └── analyzers/
 ```
 
 ## **1. Module Internal Structure**
