@@ -145,6 +145,47 @@ CREATE TABLE "RolePermissions" (
 
 COMMENT ON TABLE "RolePermissions" IS 'กำหนดสิทธิ์ให้แต่ละบทบาท';
 
+-- 1.8.1 User Role Permissions (Granular Per-User Permissions)
+CREATE TABLE "UserRolePermissions" (
+  "Id" BIGSERIAL PRIMARY KEY,
+  "UserId" BIGINT NOT NULL REFERENCES "Users"("Id") ON DELETE CASCADE,
+  "CompanyId" BIGINT NOT NULL REFERENCES "Companies"("Id") ON DELETE CASCADE,
+  "RoleId" BIGINT NOT NULL REFERENCES "Roles"("Id"),
+  "PermissionId" BIGINT NOT NULL REFERENCES "Permissions"("Id"),
+  "IsActive" BOOLEAN DEFAULT TRUE,
+  "GrantedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  "GrantedBy" BIGINT REFERENCES "Users"("Id"),
+  "RevokedAt" TIMESTAMP WITH TIME ZONE,
+  "RevokedBy" BIGINT REFERENCES "Users"("Id"),
+
+  UNIQUE("UserId", "CompanyId", "RoleId", "PermissionId")
+);
+
+COMMENT ON TABLE "UserRolePermissions" IS 'สิทธิ์เฉพาะของผู้ใช้แต่ละคน (Granular Permissions) - ผู้ใช้ที่มี Role เดียวกันสามารถมีสิทธิ์ต่างกันได้';
+COMMENT ON COLUMN "UserRolePermissions"."UserId" IS 'ผู้ใช้ที่ได้รับสิทธิ์';
+COMMENT ON COLUMN "UserRolePermissions"."CompanyId" IS 'บริษัทที่ใช้สิทธิ์นี้ (รองรับหลายบริษัท)';
+COMMENT ON COLUMN "UserRolePermissions"."RoleId" IS 'บทบาทที่สิทธิ์นี้เกี่ยวข้อง (Primary หรือ Secondary)';
+COMMENT ON COLUMN "UserRolePermissions"."PermissionId" IS 'สิทธิ์ที่ได้รับอนุมัติ';
+COMMENT ON COLUMN "UserRolePermissions"."GrantedBy" IS 'Admin ที่ให้สิทธิ์';
+COMMENT ON COLUMN "UserRolePermissions"."RevokedBy" IS 'Admin ที่ถอนสิทธิ์ (ถ้ามี)';
+
+-- 1.8.2 Permission Audit Log
+CREATE TABLE "PermissionAuditLog" (
+  "Id" BIGSERIAL PRIMARY KEY,
+  "UserId" BIGINT NOT NULL REFERENCES "Users"("Id"),
+  "CompanyId" BIGINT NOT NULL REFERENCES "Companies"("Id"),
+  "RoleId" BIGINT NOT NULL REFERENCES "Roles"("Id"),
+  "PermissionId" BIGINT NOT NULL REFERENCES "Permissions"("Id"),
+  "Action" VARCHAR(20) NOT NULL, -- 'GRANTED', 'REVOKED', 'MODIFIED'
+  "PerformedBy" BIGINT NOT NULL REFERENCES "Users"("Id"),
+  "PerformedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  "Reason" TEXT,
+  "IpAddress" VARCHAR(45),
+  "UserAgent" VARCHAR(500)
+);
+
+COMMENT ON TABLE "PermissionAuditLog" IS 'Audit trail สำหรับการให้/ถอนสิทธิ์ทั้งหมด';
+
 -- 1.9 Categories
 CREATE TABLE "Categories" (
   "Id" BIGSERIAL PRIMARY KEY,
@@ -1173,6 +1214,12 @@ CREATE INDEX "idx_user_category_bindings" ON "UserCategoryBindings"("UserCompany
 -- NEW v6.2.1: Approval chain indexes
 CREATE UNIQUE INDEX "idx_dept_approver_level_unique" ON "UserCompanyRoles"("CompanyId", "DepartmentId", "ApproverLevel") WHERE "PrimaryRoleId" = 4 AND "DepartmentId" IS NOT NULL AND "ApproverLevel" IS NOT NULL AND "IsActive" = TRUE AND "EndDate" IS NULL;
 CREATE INDEX "idx_user_category_bindings_chain" ON "UserCategoryBindings"("CategoryId", "SubcategoryId", "UserCompanyRoleId") WHERE "IsActive" = TRUE;
+-- NEW v6.3: Granular permissions indexes
+CREATE INDEX "idx_user_role_permissions_lookup" ON "UserRolePermissions"("UserId", "CompanyId", "IsActive") WHERE "IsActive" = TRUE;
+CREATE INDEX "idx_user_role_permissions_permission" ON "UserRolePermissions"("PermissionId", "IsActive");
+CREATE INDEX "idx_user_role_permissions_granted" ON "UserRolePermissions"("GrantedBy", "GrantedAt");
+CREATE INDEX "idx_permission_audit_log_user" ON "PermissionAuditLog"("UserId", "PerformedAt" DESC);
+CREATE INDEX "idx_permission_audit_log_performer" ON "PermissionAuditLog"("PerformedBy", "PerformedAt" DESC);
 
 -- RFQ Indexes
 CREATE INDEX "idx_rfqs_status" ON "Rfqs"("Status");
