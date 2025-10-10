@@ -1,9 +1,9 @@
 -- =============================================
--- E-RFQ SYSTEM COMPLETE MASTER DATA v6.3
--- Database: PostgreSQL 14+
--- Last Updated: 2025-10-03
--- Changes: Compatible with Schema v6.3 (NodaTime Multi-Timezone Support)
--- Note: Countries.Timezone already contains IANA timezones (no changes needed)
+-- E-RFQ SYSTEM COMPLETE MASTER DATA v6.4
+-- Database: PostgreSQL 16+
+-- Last Updated: 2025-10-07
+-- Changes: Compatible with Schema v6.4 (Effect-Based Permissions + RLS)
+-- Note: No data changes needed - schema changes are structural only
 -- =============================================
 
 -- =============================================

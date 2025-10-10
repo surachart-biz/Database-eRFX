@@ -1,19 +1,33 @@
 -- =============================================
--- E-RFQ SYSTEM COMPLETE DATABASE SCHEMA v6.3.0
--- Database: PostgreSQL 14+
--- Last Updated: 2025-10-03
+-- E-RFQ SYSTEM COMPLETE DATABASE SCHEMA v6.4.0
+-- Database: PostgreSQL 16+
+-- Last Updated: 2025-10-07
 --
--- MAJOR CHANGES in v6.3.0:
+-- MAJOR CHANGES in v6.4.0 (Production-Ready Security):
+--   ✅ BREAKING: UserRolePermissions → UserPermissions (Effect-Based: ALLOW/DENY)
+--   ✅ BREAKING: PermissionAuditLog → AuthorizationAuditLog (Runtime decisions)
+--   ✅ NEW: PostgreSQL Row Level Security (RLS) on 10 tables (ADR-011)
+--   ✅ NEW: Helper functions: current_tenant_id(), is_super_admin()
+--   ✅ NEW: Effect-Based permission precedence: DENY(user) > ALLOW(user) > ALLOW(role)
+--   ✅ NEW: SOC2/ISO compliance audit trail (AuthorizationAuditLog)
+--
+-- Architecture Decision Records (ADRs):
+--   - ADR-010: Effect-Based Permission System with Precedence Rules
+--   - ADR-011: PostgreSQL RLS for Multi-Tenant Data Isolation
+--   - ADR-012: Policy-Based Authorization with Audit Trail
+--
+-- CHANGES from v6.3.0:
+--   - Changed UserRolePermissions → UserPermissions (added Effect column)
+--   - Removed PermissionAuditLog table
+--   - Added AuthorizationAuditLog table
+--   - Enabled RLS on: Rfqs, Quotations, Suppliers, Users, Notifications (10 tables)
+--   - Added RLS helper functions and policies
+--   - Updated indexes for new tables (4 new indexes)
+--
+-- PREVIOUS CHANGES (v6.3.0):
 --   - Changed ALL TIMESTAMP columns to TIMESTAMP WITH TIME ZONE (NodaTime support)
 --   - Added Users.PreferredTimezone VARCHAR(50) for multi-timezone support
 --   - Added SupplierContacts.PreferredTimezone VARCHAR(50) for supplier timezone
---   - Required for Npgsql.NodaTime provider (Instant type mapping)
---
--- CHANGES from v6.2.1:
---   - Fixed UserCompanyRoles UNIQUE constraint to support multi-role per user
---   - Added approval chain support (Department & Purchasing Approver)
---   - Corrected table count (50 not 68)
---   - Added 2 new indexes for approval chain queries
 
 -- =============================================
 -- SECTION 1: MASTER DATA & LOOKUPS
@@ -62,7 +76,7 @@ CREATE TABLE "BusinessTypes" (
   "NameEn" VARCHAR(50),
   "SortOrder" SMALLINT,
   "IsActive" BOOLEAN DEFAULT TRUE,
-  "CreatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  "CreatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE "BusinessTypes" IS 'ประเภทธุรกิจ (บุคคลธรรมดา/นิติบุคคล)';
@@ -78,7 +92,7 @@ CREATE TABLE "JobTypes" (
   "PriceComparisonRule" VARCHAR(10),
   "SortOrder" SMALLINT,
   "IsActive" BOOLEAN DEFAULT TRUE,
-  "CreatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  "CreatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE "JobTypes" IS 'ประเภทงาน (ซื้อ/ขาย)';
@@ -126,7 +140,7 @@ CREATE TABLE "Permissions" (
   "PermissionNameTh" VARCHAR(100),
   "Module" VARCHAR(50),
   "IsActive" BOOLEAN DEFAULT TRUE,
-  "CreatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  "CreatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE "Permissions" IS 'สิทธิ์การใช้งานในระบบ';
@@ -145,47 +159,6 @@ CREATE TABLE "RolePermissions" (
 
 COMMENT ON TABLE "RolePermissions" IS 'กำหนดสิทธิ์ให้แต่ละบทบาท';
 
--- 1.8.1 User Role Permissions (Granular Per-User Permissions)
-CREATE TABLE "UserRolePermissions" (
-  "Id" BIGSERIAL PRIMARY KEY,
-  "UserId" BIGINT NOT NULL REFERENCES "Users"("Id") ON DELETE CASCADE,
-  "CompanyId" BIGINT NOT NULL REFERENCES "Companies"("Id") ON DELETE CASCADE,
-  "RoleId" BIGINT NOT NULL REFERENCES "Roles"("Id"),
-  "PermissionId" BIGINT NOT NULL REFERENCES "Permissions"("Id"),
-  "IsActive" BOOLEAN DEFAULT TRUE,
-  "GrantedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  "GrantedBy" BIGINT REFERENCES "Users"("Id"),
-  "RevokedAt" TIMESTAMP WITH TIME ZONE,
-  "RevokedBy" BIGINT REFERENCES "Users"("Id"),
-
-  UNIQUE("UserId", "CompanyId", "RoleId", "PermissionId")
-);
-
-COMMENT ON TABLE "UserRolePermissions" IS 'สิทธิ์เฉพาะของผู้ใช้แต่ละคน (Granular Permissions) - ผู้ใช้ที่มี Role เดียวกันสามารถมีสิทธิ์ต่างกันได้';
-COMMENT ON COLUMN "UserRolePermissions"."UserId" IS 'ผู้ใช้ที่ได้รับสิทธิ์';
-COMMENT ON COLUMN "UserRolePermissions"."CompanyId" IS 'บริษัทที่ใช้สิทธิ์นี้ (รองรับหลายบริษัท)';
-COMMENT ON COLUMN "UserRolePermissions"."RoleId" IS 'บทบาทที่สิทธิ์นี้เกี่ยวข้อง (Primary หรือ Secondary)';
-COMMENT ON COLUMN "UserRolePermissions"."PermissionId" IS 'สิทธิ์ที่ได้รับอนุมัติ';
-COMMENT ON COLUMN "UserRolePermissions"."GrantedBy" IS 'Admin ที่ให้สิทธิ์';
-COMMENT ON COLUMN "UserRolePermissions"."RevokedBy" IS 'Admin ที่ถอนสิทธิ์ (ถ้ามี)';
-
--- 1.8.2 Permission Audit Log
-CREATE TABLE "PermissionAuditLog" (
-  "Id" BIGSERIAL PRIMARY KEY,
-  "UserId" BIGINT NOT NULL REFERENCES "Users"("Id"),
-  "CompanyId" BIGINT NOT NULL REFERENCES "Companies"("Id"),
-  "RoleId" BIGINT NOT NULL REFERENCES "Roles"("Id"),
-  "PermissionId" BIGINT NOT NULL REFERENCES "Permissions"("Id"),
-  "Action" VARCHAR(20) NOT NULL, -- 'GRANTED', 'REVOKED', 'MODIFIED'
-  "PerformedBy" BIGINT NOT NULL REFERENCES "Users"("Id"),
-  "PerformedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  "Reason" TEXT,
-  "IpAddress" VARCHAR(45),
-  "UserAgent" VARCHAR(500)
-);
-
-COMMENT ON TABLE "PermissionAuditLog" IS 'Audit trail สำหรับการให้/ถอนสิทธิ์ทั้งหมด';
-
 -- 1.9 Categories
 CREATE TABLE "Categories" (
   "Id" BIGSERIAL PRIMARY KEY,
@@ -196,7 +169,7 @@ CREATE TABLE "Categories" (
   "SortOrder" INT,
   "IsActive" BOOLEAN DEFAULT TRUE,
   "CreatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  "UpdatedAt" TIMESTAMP
+  "UpdatedAt" TIMESTAMP WITH TIME ZONE
 );
 
 COMMENT ON TABLE "Categories" IS 'หมวดหมู่สินค้า/บริการ';
@@ -233,7 +206,7 @@ CREATE TABLE "SubcategoryDocRequirements" (
   "AllowedExtensions" TEXT,
   "SortOrder" INT,
   "IsActive" BOOLEAN DEFAULT TRUE,
-  "CreatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  "CreatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE "SubcategoryDocRequirements" IS 'เอกสารที่ต้องแนบตาม Subcategory';
@@ -245,7 +218,7 @@ CREATE TABLE "Incoterms" (
   "IncotermName" VARCHAR(100) NOT NULL,
   "Description" TEXT,
   "IsActive" BOOLEAN DEFAULT TRUE,
-  "CreatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  "CreatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE "Incoterms" IS 'เงื่อนไขการส่งมอบสินค้าระหว่างประเทศ';
@@ -284,7 +257,7 @@ CREATE TABLE "Positions" (
   "CanBePurchasing" BOOLEAN DEFAULT FALSE,
   "CanBePurchasingApprover" BOOLEAN DEFAULT FALSE,
   "IsActive" BOOLEAN DEFAULT TRUE,
-  "CreatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  "CreatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE "Positions" IS 'ตำแหน่งงาน';
@@ -301,7 +274,7 @@ CREATE TABLE "EmailTemplates" (
   "Language" VARCHAR(5) DEFAULT 'th',
   "IsActive" BOOLEAN DEFAULT TRUE,
   "CreatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  "UpdatedAt" TIMESTAMP
+  "UpdatedAt" TIMESTAMP WITH TIME ZONE
 );
 
 COMMENT ON TABLE "EmailTemplates" IS 'Template สำหรับส่ง Email';
@@ -426,6 +399,66 @@ COMMENT ON TABLE "Users" IS 'พนักงานภายในบริษั
 COMMENT ON COLUMN "Users"."Email" IS 'ใช้เป็น username สำหรับ login';
 COMMENT ON COLUMN "Users"."PreferredLanguage" IS 'ภาษาที่ต้องการ th/en (NEW in v6.2)';
 COMMENT ON COLUMN "Users"."PreferredTimezone" IS 'IANA timezone (e.g., Asia/Bangkok, America/New_York) for multi-timezone support (NEW in v6.3)';
+
+-- 3.1.1 User Permissions (Effect-Based) - v6.4
+-- Moved after Users table to resolve circular dependency
+CREATE TABLE "UserPermissions" (
+  "Id" BIGSERIAL PRIMARY KEY,
+  "UserId" BIGINT NOT NULL REFERENCES "Users"("Id") ON DELETE CASCADE,
+  "CompanyId" BIGINT NULL REFERENCES "Companies"("Id") ON DELETE CASCADE,
+  "PermissionId" BIGINT NOT NULL REFERENCES "Permissions"("Id"),
+  "Effect" VARCHAR(10) NOT NULL CHECK ("Effect" IN ('ALLOW', 'DENY')),
+  "IsActive" BOOLEAN DEFAULT TRUE,
+  "GrantedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  "GrantedBy" BIGINT REFERENCES "Users"("Id"),
+  "RevokedAt" TIMESTAMP WITH TIME ZONE,
+  "RevokedBy" BIGINT REFERENCES "Users"("Id"),
+  "Reason" TEXT,
+
+  UNIQUE("UserId", "CompanyId", "PermissionId")
+);
+
+COMMENT ON TABLE "UserPermissions" IS 'Effect-based per-user permissions (ALLOW/DENY) with precedence rules - ADR-010';
+COMMENT ON COLUMN "UserPermissions"."UserId" IS 'ผู้ใช้ที่ได้รับหรือถูกปฏิเสธสิทธิ์';
+COMMENT ON COLUMN "UserPermissions"."CompanyId" IS 'บริษัทที่ใช้สิทธิ์นี้ (NULL = global permission)';
+COMMENT ON COLUMN "UserPermissions"."PermissionId" IS 'สิทธิ์ที่เกี่ยวข้อง';
+COMMENT ON COLUMN "UserPermissions"."Effect" IS 'ALLOW = ให้สิทธิ์, DENY = ปฏิเสธสิทธิ์ (overrides role default) - Precedence: DENY(user) > ALLOW(user) > ALLOW(role)';
+COMMENT ON COLUMN "UserPermissions"."Reason" IS 'เหตุผลทางธุรกิจสำหรับการให้/ปฏิเสธสิทธิ์ (audit requirement)';
+COMMENT ON COLUMN "UserPermissions"."GrantedBy" IS 'Admin ที่ให้/ปฏิเสธสิทธิ์';
+COMMENT ON COLUMN "UserPermissions"."RevokedBy" IS 'Admin ที่ยกเลิก (ถ้ามี)';
+
+-- 3.1.2 Authorization Audit Log (Runtime Authorization Decisions) - v6.4
+-- Moved after Users table to resolve circular dependency
+-- Replaced PermissionAuditLog with AuthorizationAuditLog for runtime authorization tracking (ADR-012)
+CREATE TABLE "AuthorizationAuditLog" (
+  "Id" BIGSERIAL PRIMARY KEY,
+  "UserId" BIGINT NOT NULL REFERENCES "Users"("Id"),
+  "CompanyId" BIGINT NULL REFERENCES "Companies"("Id"),
+  "PermissionCode" VARCHAR(100) NOT NULL,
+  "ResourceType" VARCHAR(100),
+  "ResourceId" BIGINT,
+  "Decision" VARCHAR(10) NOT NULL CHECK ("Decision" IN ('ALLOW', 'DENY')),
+  "Reason" TEXT,
+  "Severity" VARCHAR(20) DEFAULT 'MEDIUM' CHECK ("Severity" IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
+  "IpAddress" INET,
+  "UserAgent" TEXT,
+  "Timestamp" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE "AuthorizationAuditLog" IS 'Immutable audit trail for all authorization decisions (runtime checks) - ADR-012, SOC2/ISO compliance';
+COMMENT ON COLUMN "AuthorizationAuditLog"."Decision" IS 'ALLOW = granted access, DENY = rejected access';
+COMMENT ON COLUMN "AuthorizationAuditLog"."Severity" IS 'Risk level: LOW (normal access), MEDIUM (permission check), HIGH (deny/suspicious), CRITICAL (SUPER_ADMIN bypass)';
+
+-- Indexes for UserPermissions (Effect-Based) - v6.4 (ADR-010)
+CREATE INDEX "idx_user_permissions_lookup" ON "UserPermissions"("UserId", "CompanyId", "IsActive") WHERE "IsActive" = TRUE;
+CREATE INDEX "idx_user_permissions_permission" ON "UserPermissions"("PermissionId", "Effect", "IsActive");
+CREATE INDEX "idx_user_permissions_granted" ON "UserPermissions"("GrantedBy", "GrantedAt");
+
+-- Indexes for AuthorizationAuditLog - v6.4 (ADR-012)
+CREATE INDEX "idx_auth_audit_user_time" ON "AuthorizationAuditLog"("UserId", "Timestamp" DESC);
+CREATE INDEX "idx_auth_audit_decision" ON "AuthorizationAuditLog"("Decision", "Timestamp" DESC);
+CREATE INDEX "idx_auth_audit_severity" ON "AuthorizationAuditLog"("Severity", "Timestamp" DESC);
+CREATE INDEX "idx_auth_audit_permission" ON "AuthorizationAuditLog"("PermissionCode", "Timestamp" DESC);
 
 -- 3.2 UserCompanyRoles
 CREATE TABLE "UserCompanyRoles" (
@@ -1158,7 +1191,7 @@ CREATE TABLE "ActivityLogs" (
   "IpAddress" INET,
   "UserAgent" TEXT,
   "SessionId" VARCHAR(100),
-  "CreatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  "CreatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE "ActivityLogs" IS 'บันทึกกิจกรรมสำคัญ (Critical actions only)';
@@ -1194,7 +1227,7 @@ CREATE TABLE "ErrorLogs" (
   "ResolvedBy" BIGINT REFERENCES "Users"("Id"),
   "ResolvedAt" TIMESTAMP WITH TIME ZONE,
   "ResolutionNotes" TEXT,
-  "CreatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  "CreatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE "ErrorLogs" IS 'บันทึก Business Critical Errors';
@@ -1214,12 +1247,6 @@ CREATE INDEX "idx_user_category_bindings" ON "UserCategoryBindings"("UserCompany
 -- NEW v6.2.1: Approval chain indexes
 CREATE UNIQUE INDEX "idx_dept_approver_level_unique" ON "UserCompanyRoles"("CompanyId", "DepartmentId", "ApproverLevel") WHERE "PrimaryRoleId" = 4 AND "DepartmentId" IS NOT NULL AND "ApproverLevel" IS NOT NULL AND "IsActive" = TRUE AND "EndDate" IS NULL;
 CREATE INDEX "idx_user_category_bindings_chain" ON "UserCategoryBindings"("CategoryId", "SubcategoryId", "UserCompanyRoleId") WHERE "IsActive" = TRUE;
--- NEW v6.3: Granular permissions indexes
-CREATE INDEX "idx_user_role_permissions_lookup" ON "UserRolePermissions"("UserId", "CompanyId", "IsActive") WHERE "IsActive" = TRUE;
-CREATE INDEX "idx_user_role_permissions_permission" ON "UserRolePermissions"("PermissionId", "IsActive");
-CREATE INDEX "idx_user_role_permissions_granted" ON "UserRolePermissions"("GrantedBy", "GrantedAt");
-CREATE INDEX "idx_permission_audit_log_user" ON "PermissionAuditLog"("UserId", "PerformedAt" DESC);
-CREATE INDEX "idx_permission_audit_log_performer" ON "PermissionAuditLog"("PerformedBy", "PerformedAt" DESC);
 
 -- RFQ Indexes
 CREATE INDEX "idx_rfqs_status" ON "Rfqs"("Status");
@@ -1376,4 +1403,168 @@ CREATE INDEX "idx_notifications_unread" ON "Notifications"("UserId", "IsRead") W
 -- INDEX LOCATIONS (All indexes in INDEXES FOR PERFORMANCE section):
 --   - idx_dept_approver_level_unique: Line 1130 (partial unique index on UserCompanyRoles)
 --   - idx_user_category_bindings_chain: Line 1131 (composite index for chain queries)
+--
+-- =============================================
+-- SECTION: ROW LEVEL SECURITY (RLS) - v6.4 (ADR-011)
+-- =============================================
+
+-- Helper Functions for RLS
+CREATE OR REPLACE FUNCTION current_tenant_id()
+RETURNS BIGINT AS $$
+BEGIN
+  RETURN NULLIF(current_setting('app.current_company_id', true), '')::BIGINT;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+CREATE OR REPLACE FUNCTION is_super_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN COALESCE(current_setting('app.is_super_admin', true)::BOOLEAN, FALSE);
+EXCEPTION WHEN OTHERS THEN
+  RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+COMMENT ON FUNCTION current_tenant_id() IS 'Get current company ID from session variable (set by TenantContextMiddleware)';
+COMMENT ON FUNCTION is_super_admin() IS 'Check if current user is SUPER_ADMIN (can bypass RLS)';
+
+-- Enable RLS on Multi-Tenant Tables
+ALTER TABLE "Rfqs" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "QuotationItems" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "RfqInvitations" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "RfqItems" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Suppliers" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Users" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "UserCompanyRoles" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Notifications" ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies (Defense-in-Depth with app-level authorization)
+-- Policy: Allow SUPER_ADMIN to bypass, otherwise check CompanyId
+
+CREATE POLICY rfq_isolation ON "Rfqs"
+  FOR ALL
+  USING (
+    is_super_admin() OR
+    "CompanyId" = current_tenant_id()
+  );
+
+CREATE POLICY quotation_item_isolation ON "QuotationItems"
+  FOR ALL
+  USING (
+    is_super_admin() OR
+    EXISTS (
+      SELECT 1 FROM "Rfqs" r
+      WHERE r."Id" = "QuotationItems"."RfqId"
+        AND r."CompanyId" = current_tenant_id()
+    )
+  );
+
+-- =============================================
+-- Policy 2: RfqInvitations
+-- =============================================
+
+CREATE POLICY rfq_invitation_isolation ON "RfqInvitations"
+  FOR ALL
+  USING (
+    is_super_admin() OR
+    EXISTS (
+      SELECT 1 FROM "Rfqs" r
+      WHERE r."Id" = "RfqInvitations"."RfqId"
+        AND r."CompanyId" = current_tenant_id()
+    )
+  );
+
+CREATE POLICY rfq_item_isolation ON "RfqItems"
+  FOR ALL
+  USING (
+    is_super_admin() OR
+    EXISTS (
+      SELECT 1 FROM "Rfqs" r
+      WHERE r."Id" = "RfqItems"."RfqId"
+        AND r."CompanyId" = current_tenant_id()
+    )
+  );
+
+-- =============================================
+-- Policy 3: Suppliers (Option C - ACTIVE)
+-- =============================================
+
+CREATE POLICY supplier_isolation ON "Suppliers"
+  FOR ALL
+  USING (
+    is_super_admin() OR
+    ("Status" = 'COMPLETED' AND "IsActive" = true)
+  );
+
+/*
+-- OPTION A (STRICT - ปิด comment):
+CREATE POLICY supplier_isolation ON "Suppliers"
+  FOR ALL
+  USING (
+    is_super_admin() OR
+    EXISTS (
+      SELECT 1 FROM "RfqInvitations" ri
+      INNER JOIN "Rfqs" r ON r."Id" = ri."RfqId"
+      WHERE ri."SupplierId" = "Suppliers"."Id"
+        AND r."CompanyId" = current_tenant_id()
+    )
+  );
+*/
+
+/*
+-- OPTION B (MODERATE - ปิด comment):
+CREATE POLICY supplier_isolation ON "Suppliers"
+  FOR ALL
+  USING (
+    is_super_admin() OR
+    EXISTS (
+      SELECT 1 FROM "RfqInvitations" ri
+      INNER JOIN "Rfqs" r ON r."Id" = ri."RfqId"
+      WHERE ri."SupplierId" = "Suppliers"."Id"
+        AND r."CompanyId" = current_tenant_id()
+    )
+    OR
+    "InvitedByCompanyId" = current_tenant_id()
+  );
+*/
+
+CREATE POLICY user_isolation ON "Users"
+  FOR ALL
+  USING (
+    is_super_admin() OR
+    EXISTS (
+      SELECT 1 FROM "UserCompanyRoles" ucr
+      WHERE ucr."UserId" = "Users"."Id"
+        AND ucr."CompanyId" = current_tenant_id()
+    )
+  );
+
+CREATE POLICY user_company_role_isolation ON "UserCompanyRoles"
+  FOR ALL
+  USING (
+    is_super_admin() OR
+    "CompanyId" = current_tenant_id()
+  );
+
+-- =============================================
+-- Policy 1: Notifications
+-- =============================================
+
+CREATE POLICY notification_isolation ON "Notifications"
+  FOR ALL
+  USING (
+    is_super_admin() OR
+    EXISTS (
+      SELECT 1 FROM "UserCompanyRoles" ucr
+      WHERE ucr."UserId" = "Notifications"."UserId"
+        AND ucr."CompanyId" = current_tenant_id()
+    )
+  );
+
+COMMENT ON POLICY rfq_isolation ON "Rfqs" IS 'RLS: Isolate RFQs by company (SUPER_ADMIN bypasses)';
+COMMENT ON POLICY supplier_isolation ON "Suppliers" IS 'RLS: Isolate suppliers by company (SUPER_ADMIN bypasses)';
+COMMENT ON POLICY user_isolation ON "Users" IS 'RLS: Users visible only if they belong to current company (SUPER_ADMIN bypasses)';
+
 -- =============================================
